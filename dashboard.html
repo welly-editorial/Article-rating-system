@@ -113,6 +113,7 @@ select { border: 0.5px solid rgba(0,0,0,0.18); border-radius: 8px; padding: 8px 
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
 // ========================================================
 // 設定：填這三個，Sheet 必須共用為「知道連結的任何人」可檢視
@@ -351,46 +352,40 @@ function buildReportTable(filtered, okr){
   return html;
 }
 
-function buildMarkdown(editor, filtered, okr){
-  const lines = [];
-  lines.push(`# ${editor === '__all__' ? '全部編輯' : editor} 審稿評分統計`);
-  lines.push('');
+function buildSheetAoa(editor, filtered, okr){
+  const aoa = [];
+  aoa.push([`${editor === '__all__' ? '全部編輯' : editor} 審稿評分統計`]);
   if(editor !== '__all__' && okr){
     if(okr.isTraining){
-      lines.push(`> **OKR（培訓期）**：未達及格 ≤ ${okr.unmetCap || 30}%`);
+      aoa.push([`OKR（培訓期）：未達及格 ≤ ${okr.unmetCap || 30}%`]);
     } else {
       const parts = [];
       if(okr.structureLimit != null) parts.push(`架構 ≤ ${okr.structureLimit}%`);
       if(okr.articleLimit != null) parts.push(`文章 ≤ ${okr.articleLimit}%`);
       if(okr.monthlyTarget != null) parts.push(`月達成率 ≥ ${okr.monthlyTarget}%`);
-      lines.push(`> **OKR**：${parts.join(' ｜ ')}`);
+      aoa.push([`OKR：${parts.join('　')}`]);
     }
   }
-  lines.push(`> **總篇數**：${filtered.length} 筆`);
-  lines.push('');
-  lines.push('| 日期 | 撰文編輯 | 關鍵字 | 模式 | 修改幅度 | 評等 | 審稿人 |');
-  lines.push('| --- | --- | --- | --- | --- | --- | --- |');
-  filtered.sort((a, b) => (a['評分日期']||'').localeCompare(b['評分日期']||'')).forEach(r => {
+  aoa.push([`總篇數：${filtered.length} 筆`]);
+  aoa.push([]);
+  aoa.push(['日期', '撰文編輯', '關鍵字', '模式', '修改幅度(%)', '評等', '審稿人', '文章連結']);
+  filtered.slice().sort((a, b) => (a['評分日期']||'').localeCompare(b['評分日期']||'')).forEach(r => {
     const score = parseFloat(r['總扣分_百分比'] || 0);
     const pass = isPassByOkr(r, okr);
-    const emoji = pass ? '🟢' : (pass === false ? '🔴' : '⚪');
-    const link = r['文章連結'] ? `[${r['文章名稱']}](${r['文章連結']})` : r['文章名稱'];
-    const wk = getIsoWeekLabel(r['評分日期']) || '';
     const grade = pass === true ? '及格' : (pass === false ? '不及格' : '—');
-    lines.push(`| ${weekToDateRange(wk)} | ${r['撰文編輯']||''} | ${link} | ${r['評分模式']||''} | ${emoji} ${score.toFixed(0)}% | ${grade} | ${r['審稿人']||''} |`);
+    const wk = getIsoWeekLabel(r['評分日期']) || '';
+    aoa.push([weekToDateRange(wk), r['撰文編輯']||'', r['文章名稱']||'', r['評分模式']||'', score, grade, r['審稿人']||'', r['文章連結']||'']);
   });
-  return lines.join('\n');
+  return aoa;
 }
 
-function downloadMarkdown(editor, filtered, okr){
-  const md = buildMarkdown(editor, filtered, okr);
-  const blob = new Blob([md], { type: 'text/markdown' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `${editor === '__all__' ? '全部' : editor}_審稿統計.md`;
-  a.click();
-  URL.revokeObjectURL(url);
+function downloadXlsx(editor, filtered, okr){
+  const aoa = buildSheetAoa(editor, filtered, okr);
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{ wch: 12 }, { wch: 14 }, { wch: 30 }, { wch: 8 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 42 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '審稿統計');
+  XLSX.writeFile(wb, `${editor === '__all__' ? '全部' : editor}_審稿統計.xlsx`);
 }
 
 function render(){
@@ -442,13 +437,13 @@ function render(){
       ` : ''}
       <div class="section-title">
         <span>個人審稿統計表（共 ${filtered.length} 筆）</span>
-        <button class="dl-btn" id="dl_md_btn">下載 Markdown</button>
+        <button class="dl-btn" id="dl_xlsx_btn">下載 Excel</button>
       </div>
       ${filtered.length === 0 ? '<div class="empty">此條件下無評分紀錄</div>' : buildReportTable(filtered, okr)}
     </div>
   `;
 
-  document.getElementById('dl_md_btn').addEventListener('click', () => downloadMarkdown(editorVal, filtered, okr));
+  document.getElementById('dl_xlsx_btn').addEventListener('click', () => downloadXlsx(editorVal, filtered, okr));
 
   if(months.length >= 2){
     const canvas = document.getElementById('trend_chart');
