@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Welly 審稿評分計算面板</title>
+<style>
+:root { color-scheme: light; font-family: -apple-system, "Helvetica Neue", "PingFang TC", "Microsoft JhengHei", sans-serif; color: #1a1a1a; }
+body { margin: 0; padding: 20px; background: #ffffff; line-height: 1.6; }
+.container { max-width: 960px; margin: 0 auto; }
+.nav-back { display: inline-block; font-size: 12px; color: #2b6cb0; text-decoration: none; margin-bottom: 12px; }
+.nav-back:hover { text-decoration: underline; }
+.title { font-size: 20px; font-weight: 500; margin: 0 0 4px; }
+.subtitle { font-size: 13px; color: #6b6b6b; margin: 0 0 20px; }
+
+.form-card { background: #f7f7f5; border-radius: 10px; padding: 14px 16px; margin-bottom: 16px; }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; }
+.form-row { display: flex; flex-direction: column; gap: 4px; }
+.form-row.full { grid-column: 1 / -1; }
+.form-row label { font-size: 12px; color: #555; font-weight: 500; }
+input[type="text"], input[type="url"], select { border: 0.5px solid rgba(0,0,0,0.18); border-radius: 8px; padding: 8px 12px; font-size: 14px; background: #fff; color: #1a1a1a; font-family: inherit; }
+
+.mode-tabs { display: flex; gap: 6px; padding: 4px; background: #e8e8e3; border-radius: 8px; }
+.mode-tab { flex: 1; padding: 7px 12px; background: transparent; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; font-family: inherit; color: #6b6b6b; }
+.mode-tab.active { background: #fff; color: #1a1a1a; font-weight: 500; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+
+.deduction-section { margin-bottom: 14px; }
+.deduction-title { font-size: 12px; font-weight: 500; color: #6b6b6b; margin: 0 0 8px; padding: 0 4px; display: flex; align-items: center; gap: 8px; }
+.tier-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 500; }
+.tier-2 { background: #e8f0fe; color: #1a4480; }
+.tier-5 { background: #fef3c7; color: #7a5a00; }
+.tier-10 { background: #fde2e2; color: #8b1a13; }
+.tier-15 { background: #f3e8ff; color: #5b21b6; }
+
+.item-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 6px; }
+
+.other-section { margin-top: 20px; padding: 14px 16px; background: #fef9e7; border: 0.5px solid #f0d878; border-radius: 10px; }
+.other-section-title { font-size: 13px; font-weight: 500; color: #7a5a00; margin: 0 0 10px; display: flex; align-items: center; gap: 8px; }
+.other-section-title .tag { display: inline-block; padding: 2px 8px; background: #f0d878; color: #7a5a00; border-radius: 10px; font-size: 11px; }
+.other-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.other-entry { display: flex; gap: 6px; align-items: center; background: #fff; padding: 6px 8px; border-radius: 8px; border: 0.5px solid rgba(0,0,0,0.08); }
+.other-desc { flex: 1; border: 0.5px solid rgba(0,0,0,0.15); border-radius: 6px; padding: 6px 10px; font-size: 13px; font-family: inherit; min-width: 0; }
+.other-desc:focus { outline: 2px solid #2b6cb0; outline-offset: -1px; border-color: transparent; }
+.other-tier { width: 80px; border: 0.5px solid rgba(0,0,0,0.15); border-radius: 6px; padding: 6px 8px; font-size: 13px; font-family: inherit; flex-shrink: 0; }
+.other-remove { width: 26px; height: 26px; border: 0.5px solid rgba(0,0,0,0.15); background: #fff; border-radius: 50%; cursor: pointer; font-size: 16px; color: #8b1a13; display: flex; align-items: center; justify-content: center; padding: 0; flex-shrink: 0; font-family: inherit; }
+.other-remove:hover { background: #fdecea; }
+.add-other-btn { background: #fff; border: 0.5px dashed rgba(0,0,0,0.3); border-radius: 8px; padding: 8px 16px; font-size: 13px; cursor: pointer; color: #2b6cb0; font-family: inherit; width: 100%; }
+.add-other-btn:hover { background: #f0f7ff; border-color: #2b6cb0; }
+.other-empty { font-size: 12px; color: #999; text-align: center; padding: 8px 0; }
+.item-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; background: #fff; border: 0.5px solid rgba(0,0,0,0.08); border-radius: 8px; transition: border-color 0.15s; }
+.item-row.has-count { border-color: #2b6cb0; background: #f0f7ff; }
+.item-name { font-size: 13px; flex: 1; min-width: 0; }
+.counter { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.counter-btn { width: 26px; height: 26px; border: 0.5px solid rgba(0,0,0,0.15); border-radius: 50%; background: #fff; cursor: pointer; font-size: 14px; font-weight: 500; color: #1a1a1a; display: flex; align-items: center; justify-content: center; font-family: inherit; padding: 0; transition: background 0.1s; }
+.counter-btn:hover { background: #f0f0ed; }
+.counter-btn:active { background: #e0e0db; }
+.counter-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.counter-input { width: 38px; height: 26px; border: 0.5px solid rgba(0,0,0,0.15); border-radius: 6px; text-align: center; font-size: 13px; font-weight: 500; font-family: inherit; padding: 0; -moz-appearance: textfield; }
+.counter-input::-webkit-outer-spin-button, .counter-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+.summary-card { background: #fff; border: 0.5px solid rgba(0,0,0,0.12); border-radius: 12px; padding: 18px 20px; margin-top: 16px; display: flex; gap: 24px; align-items: center; }
+.summary-card.pass { background: #e8f4ea; border-color: #98c89e; }
+.summary-card.mid { background: #fef9e7; border-color: #f0d878; }
+.summary-card.fail { background: #fdecea; border-color: #f0a6a2; }
+.summary-card .label { font-size: 12px; color: #6b6b6b; margin-bottom: 2px; }
+.summary-card .num { font-size: 32px; font-weight: 500; line-height: 1; min-width: 90px; }
+.summary-card .grade { font-size: 22px; font-weight: 500; }
+
+.tsv-section { margin-top: 18px; display: none; }
+.tsv-section.visible { display: block; }
+.tsv-box { background: #f7f7f5; padding: 12px 14px; border-radius: 8px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; word-break: break-all; color: #1a1a1a; line-height: 1.5; margin-bottom: 8px; white-space: pre-wrap; }
+.action-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 9px 18px; font-size: 14px; font-weight: 500; border-radius: 8px; cursor: pointer; border: 0.5px solid rgba(0,0,0,0.18); background: #fff; color: #1a1a1a; font-family: inherit; text-decoration: none; }
+a.btn { text-decoration: none; color: #1a1a1a; }
+a.btn:hover { background: #f5f5f5; }
+.btn:hover { background: #f5f5f5; }
+.btn.primary { background: #2b6cb0; color: #fff; border-color: #2b6cb0; }
+.btn.primary:hover { background: #245a96; }
+
+.hint { font-size: 12px; color: #6b6b6b; margin: 4px 0 0; }
+.status { font-size: 12px; color: #1e5a26; font-weight: 500; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<a href="index.html" class="nav-back">← 回首頁</a>
+<h1 class="title">審稿評分計算面板</h1>
+<p class="subtitle">點選扣分項目的「+」按鈕加次數，總扣分與評等即時更新。完成後一鍵複製 TSV 貼進 Sheet。</p>
+
+<div class="form-card">
+  <div class="form-grid">
+    <div class="form-row full">
+      <label for="article_name">文章名稱／關鍵字</label>
+      <input type="text" id="article_name" placeholder="例：眼尾下垂">
+    </div>
+    <div class="form-row full">
+      <label for="doc_url">Google Doc 連結</label>
+      <input type="url" id="doc_url" placeholder="https://docs.google.com/document/d/...">
+    </div>
+    <div class="form-row">
+      <label for="editor">撰文編輯</label>
+      <select id="editor">
+        <option value="">請選擇</option>
+        <option>宋昕芮</option>
+        <option>馮椀筑 Alice</option>
+        <option>葉芳吟</option>
+        <option>王若瑤</option>
+        <option>李昀真</option>
+        <option>黃筱芸</option>
+        <option>鄭宛容</option>
+        <option>羅睿芳</option>
+        <option>黃睿慈</option>
+        <option>蔡瓅萱 Emily</option>
+        <option>呂亭儀 Tiffany</option>
+        <option>尤嘉莉</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label for="reviewer">審稿人</label>
+      <select id="reviewer">
+        <option value="">請選擇</option>
+        <option>淳媺</option>
+        <option>雅筑</option>
+        <option>睿芳</option>
+        <option>昕芮</option>
+        <option>珮芳</option>
+        <option>芳吟</option>
+      </select>
+    </div>
+    <div class="form-row full">
+      <label>評分模式</label>
+      <div class="mode-tabs" id="mode_tabs">
+        <button class="mode-tab active" data-mode="文章">📄 文章</button>
+        <button class="mode-tab" data-mode="架構">📐 架構</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="items_area"></div>
+
+<div class="other-section">
+  <div class="other-section-title">
+    <span class="tag">其他</span>
+    <span>特殊情況自由填寫（描述問題 + 選扣分）</span>
+  </div>
+  <div class="other-list" id="other_list"></div>
+  <button class="add-other-btn" id="add_other_btn">＋ 新增「其他」扣分項</button>
+</div>
+
+<div class="summary-card" id="summary">
+  <div>
+    <div class="label">總扣分</div>
+    <div class="num" id="total_pct">0.0%</div>
+  </div>
+  <div>
+    <div class="label">評等</div>
+    <div class="grade" id="grade_text">—</div>
+  </div>
+  <div style="margin-left: auto;">
+    <button class="btn primary" id="gen_tsv_btn">產出 TSV</button>
+    <button class="btn" id="reset_btn">清空計次</button>
+  </div>
+</div>
+
+<div class="tsv-section" id="tsv_section">
+  <h3 style="font-size: 13px; font-weight: 500; margin: 0 0 8px;">① 貼進 Google Sheet 的這一列</h3>
+  <div class="tsv-box" id="tsv_text"></div>
+  <div class="action-row">
+    <button class="btn primary" id="copy_btn">複製 TSV</button>
+    <a class="btn" href="https://docs.google.com/spreadsheets/d/1sWt0CUDSBWzLmDNK1H2pwWNI0zhpvTnOByjZMI3P5gA/edit" target="_blank" rel="noopener">在 Google Sheet 開啟</a>
+    <span id="copy_status" class="status" style="display:none; align-self:center;">已複製，請到 Sheet 貼上</span>
+  </div>
+  <p class="hint">貼上方式：到 Sheet 第一個空白列點 A 欄 → Ctrl/Cmd+V，Sheet 會自動分欄</p>
+
+  <h3 style="font-size: 13px; font-weight: 500; margin: 18px 0 8px;">② 貼進 Trello 卡片的摘要</h3>
+  <div class="tsv-box" id="trello_text"></div>
+  <div class="action-row">
+    <button class="btn primary" id="copy_trello_btn">複製 Trello 摘要</button>
+    <span id="copy_trello_status" class="status" style="display:none; align-self:center;">已複製，請到 Trello 卡片貼上</span>
+  </div>
+  <p class="hint">格式：「修改幅度：-X%（依據統整結果）」+ 逐行「* 項目 -tierxN」</p>
+</div>
+
+</div>
+
+<script>
+const SHEET_ID = '1sWt0CUDSBWzLmDNK1H2pwWNI0zhpvTnOByjZMI3P5gA';
+const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit`;
+
+const ITEMS = {
+  '架構': [
+    { tier: 2, items: ['錯字／統一用字', 'url、slug', '目錄', 'H 標籤', '標題品質', '關鍵字置入', '關鍵字標色', '文字及符號格式', 'CTA', '審核文字'] },
+    { tier: 5, items: ['搜尋意圖、豐富度編排', '內容設計、符合關鍵字分析規劃', '內文邏輯、資訊正確性', '法規問題', '推薦類「內容豐富度」', '推薦類「段落撰寫內容錯誤」'] },
+    { tier: 10, items: ['TA'] },
+    { tier: 15, items: ['改寫幅度'] },
+  ],
+  '文章': [
+    { tier: 2, items: ['錯字／統一用字', '目錄', '字數', 'H 標籤', '標題品質', '關鍵字置入', '關鍵字標色', '文字及符號格式', '內鏈標註', '配圖', '產品圖', '參考資料', 'CTA', '語句通順度'] },
+    { tier: 5, items: ['搜尋意圖', '內容深度、資訊完整度', 'AI 感過重', '資訊正確性', '內文前後邏輯', '段落編排、內容梳理', '過多術語、難度高詞彙', '法規問題'] },
+    { tier: 15, items: ['改寫幅度'] },
+  ],
+};
+
+const TIER_LABELS = { 2: '-2% 項', 5: '-5% 項', 10: '-10% 項', 15: '-15% 項' };
+
+let currentMode = '文章';
+let counts = {};
+let otherEntries = [];
+
+function loadCounts(){
+  const saved = localStorage.getItem('rsp_counts_' + currentMode);
+  counts = saved ? JSON.parse(saved) : {};
+  const savedOther = localStorage.getItem('rsp_other_' + currentMode);
+  otherEntries = savedOther ? JSON.parse(savedOther) : [];
+}
+function saveCounts(){
+  localStorage.setItem('rsp_counts_' + currentMode, JSON.stringify(counts));
+}
+function saveOtherEntries(){
+  localStorage.setItem('rsp_other_' + currentMode, JSON.stringify(otherEntries));
+}
+
+['article_name', 'doc_url', 'editor', 'reviewer'].forEach(id => {
+  const el = document.getElementById(id);
+  const v = localStorage.getItem('rsp_' + id);
+  if(v) el.value = v;
+  el.addEventListener('change', e => localStorage.setItem('rsp_' + id, e.target.value));
+});
+
+const lastMode = localStorage.getItem('rsp_mode');
+if(lastMode && ITEMS[lastMode]){
+  currentMode = lastMode;
+  document.querySelectorAll('.mode-tab').forEach(t => t.classList.toggle('active', t.dataset.mode === currentMode));
+}
+
+function calcTotal(){
+  let total = 0;
+  ITEMS[currentMode].forEach(group => {
+    group.items.forEach(item => {
+      total += (counts[item] || 0) * group.tier;
+    });
+  });
+  otherEntries.forEach(o => total += (parseInt(o.tier) || 0));
+  return total;
+}
+
+function renderOtherSection(){
+  const list = document.getElementById('other_list');
+  if(otherEntries.length === 0){
+    list.innerHTML = '<div class="other-empty">尚無其他扣分項，按下方「＋ 新增」加入</div>';
+    return;
+  }
+  list.innerHTML = '';
+  otherEntries.forEach((entry, idx) => {
+    const div = document.createElement('div');
+    div.className = 'other-entry';
+    const safeDesc = (entry.desc || '').replace(/"/g, '&quot;');
+    div.innerHTML = `
+      <input type="text" class="other-desc" placeholder="問題描述（例：客戶要求未處理）" value="${safeDesc}">
+      <select class="other-tier">
+        <option value="2"${entry.tier === 2 ? ' selected' : ''}>-2%</option>
+        <option value="5"${entry.tier === 5 ? ' selected' : ''}>-5%</option>
+      </select>
+      <button class="other-remove" title="刪除此項">×</button>
+    `;
+    div.querySelector('.other-desc').addEventListener('input', e => {
+      otherEntries[idx].desc = e.target.value;
+      saveOtherEntries();
+    });
+    div.querySelector('.other-tier').addEventListener('change', e => {
+      otherEntries[idx].tier = parseInt(e.target.value);
+      saveOtherEntries();
+      updateSummary();
+    });
+    div.querySelector('.other-remove').addEventListener('click', () => {
+      otherEntries.splice(idx, 1);
+      saveOtherEntries();
+      renderOtherSection();
+      updateSummary();
+    });
+    list.appendChild(div);
+  });
+}
+
+function calcGrade(pct){
+  if(currentMode === '架構'){
+    if(pct <= 10) return { name: '及格', cls: 'pass' };
+    if(pct <= 15) return { name: '普通', cls: 'mid' };
+    return { name: '不及格', cls: 'fail' };
+  } else {
+    if(pct <= 15) return { name: '及格', cls: 'pass' };
+    if(pct <= 20) return { name: '普通', cls: 'mid' };
+    return { name: '不及格', cls: 'fail' };
+  }
+}
+
+function updateSummary(){
+  const total = calcTotal();
+  const grade = calcGrade(total);
+  document.getElementById('total_pct').textContent = '-' + total.toFixed(1) + '%';
+  document.getElementById('grade_text').textContent = total > 0 ? grade.name : '—';
+  const card = document.getElementById('summary');
+  card.classList.remove('pass', 'mid', 'fail');
+  if(total > 0) card.classList.add(grade.cls);
+  document.getElementById('tsv_section').classList.remove('visible');
+  document.getElementById('copy_status').style.display = 'none';
+}
+
+function renderItems(){
+  const area = document.getElementById('items_area');
+  let html = '';
+  ITEMS[currentMode].forEach(group => {
+    html += `<div class="deduction-section">
+      <div class="deduction-title">
+        <span class="tier-badge tier-${group.tier}">${TIER_LABELS[group.tier]}</span>
+        <span>每犯 1 次扣 ${group.tier}%</span>
+      </div>
+      <div class="item-list">`;
+    group.items.forEach(item => {
+      const c = counts[item] || 0;
+      html += `<div class="item-row ${c > 0 ? 'has-count' : ''}" data-item="${item}">
+        <span class="item-name">${item}</span>
+        <div class="counter">
+          <button class="counter-btn dec" ${c === 0 ? 'disabled' : ''}>−</button>
+          <input type="number" class="counter-input" value="${c}" min="0">
+          <button class="counter-btn inc">＋</button>
+        </div>
+      </div>`;
+    });
+    html += `</div></div>`;
+  });
+  area.innerHTML = html;
+
+  area.querySelectorAll('.item-row').forEach(row => {
+    const item = row.dataset.item;
+    const input = row.querySelector('.counter-input');
+    row.querySelector('.inc').addEventListener('click', () => {
+      counts[item] = (counts[item] || 0) + 1;
+      input.value = counts[item];
+      row.classList.add('has-count');
+      row.querySelector('.dec').disabled = false;
+      saveCounts();
+      updateSummary();
+    });
+    row.querySelector('.dec').addEventListener('click', () => {
+      counts[item] = Math.max(0, (counts[item] || 0) - 1);
+      input.value = counts[item];
+      if(counts[item] === 0){
+        row.classList.remove('has-count');
+        row.querySelector('.dec').disabled = true;
+        delete counts[item];
+      }
+      saveCounts();
+      updateSummary();
+    });
+    input.addEventListener('change', e => {
+      const v = Math.max(0, parseInt(e.target.value) || 0);
+      counts[item] = v;
+      input.value = v;
+      if(v === 0){
+        row.classList.remove('has-count');
+        row.querySelector('.dec').disabled = true;
+        delete counts[item];
+      } else {
+        row.classList.add('has-count');
+        row.querySelector('.dec').disabled = false;
+      }
+      saveCounts();
+      updateSummary();
+    });
+  });
+  updateSummary();
+}
+
+document.querySelectorAll('.mode-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    currentMode = tab.dataset.mode;
+    localStorage.setItem('rsp_mode', currentMode);
+    document.querySelectorAll('.mode-tab').forEach(t => t.classList.toggle('active', t === tab));
+    loadCounts();
+    renderItems();
+    renderOtherSection();
+  });
+});
+
+document.getElementById('reset_btn').addEventListener('click', () => {
+  if(!confirm('確定清空所有計次嗎？（不影響上方表單）')) return;
+  counts = {};
+  otherEntries = [];
+  saveCounts();
+  saveOtherEntries();
+  renderItems();
+  renderOtherSection();
+});
+
+document.getElementById('add_other_btn').addEventListener('click', () => {
+  otherEntries.push({ desc: '', tier: 2 });
+  saveOtherEntries();
+  renderOtherSection();
+  setTimeout(() => {
+    const inputs = document.querySelectorAll('.other-desc');
+    if(inputs.length > 0) inputs[inputs.length - 1].focus();
+  }, 0);
+});
+
+document.getElementById('gen_tsv_btn').addEventListener('click', () => {
+  const articleName = document.getElementById('article_name').value.trim();
+  const docUrl = document.getElementById('doc_url').value.trim();
+  const editor = document.getElementById('editor').value;
+  const reviewer = document.getElementById('reviewer').value;
+
+  if(!articleName || !editor || !reviewer){
+    alert('請填寫文章名、撰文編輯、審稿人');
+    return;
+  }
+
+  const total = calcTotal();
+  const today = new Date().toISOString().slice(0, 10);
+
+  const jsonObj = {};
+  ITEMS[currentMode].forEach(group => {
+    group.items.forEach(item => {
+      const c = counts[item] || 0;
+      if(c > 0) jsonObj[item] = c;
+    });
+  });
+  otherEntries.forEach(o => {
+    if(o.desc && o.desc.trim()){
+      jsonObj[`其他：${o.desc.trim()} (-${o.tier}%)`] = 1;
+    }
+  });
+  const jsonStr = JSON.stringify(jsonObj, null, 0);
+
+  // 8 欄 TSV
+  const cells = [today, editor, articleName, docUrl, currentMode, total.toFixed(1), reviewer, jsonStr];
+  const tsv = cells.map(v => String(v).replace(/\t/g, ' ').replace(/\r?\n/g, ' ')).join('\t');
+  document.getElementById('tsv_text').textContent = tsv;
+
+  // Trello 摘要
+  const trelloLines = [`修改幅度：-${total.toFixed(1)}%（依據統整結果）`];
+  ITEMS[currentMode].forEach(group => {
+    group.items.forEach(item => {
+      const c = counts[item] || 0;
+      if(c > 0) trelloLines.push(`* ${item} -${group.tier}x${c}`);
+    });
+  });
+  otherEntries.forEach(o => {
+    if(o.desc && o.desc.trim()){
+      trelloLines.push(`* 其他：${o.desc.trim()} -${o.tier}x1`);
+    }
+  });
+  document.getElementById('trello_text').textContent = trelloLines.join('\n');
+
+  document.getElementById('tsv_section').classList.add('visible');
+  document.getElementById('tsv_section').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+});
+
+async function copyToClipboard(txt, statusEl){
+  if(navigator.clipboard && window.isSecureContext){
+    try {
+      await navigator.clipboard.writeText(txt);
+      statusEl.textContent = '已複製，請到 Sheet 貼上';
+      statusEl.style.display = 'inline';
+      statusEl.style.color = '#1e5a26';
+      return true;
+    } catch(e){}
+  }
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = txt;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    if(ok){
+      statusEl.textContent = '已複製，請到 Sheet 貼上';
+      statusEl.style.display = 'inline';
+      statusEl.style.color = '#1e5a26';
+      return true;
+    }
+  } catch(e){}
+  try {
+    const box = document.getElementById('tsv_text');
+    const range = document.createRange();
+    range.selectNodeContents(box);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    statusEl.textContent = '已選取 TSV，請按 Ctrl/Cmd+C 手動複製';
+    statusEl.style.display = 'inline';
+    statusEl.style.color = '#7a5a00';
+    return false;
+  } catch(e){
+    statusEl.textContent = '複製失敗：' + (e.message || e);
+    statusEl.style.display = 'inline';
+    statusEl.style.color = '#8b1a13';
+    return false;
+  }
+}
+
+document.getElementById('copy_btn').addEventListener('click', async () => {
+  const txt = document.getElementById('tsv_text').textContent;
+  const statusEl = document.getElementById('copy_status');
+  await copyToClipboard(txt, statusEl);
+});
+
+document.getElementById('copy_trello_btn').addEventListener('click', async () => {
+  const txt = document.getElementById('trello_text').textContent;
+  const statusEl = document.getElementById('copy_trello_status');
+  await copyToClipboard(txt, statusEl);
+});
+
+loadCounts();
+renderItems();
+renderOtherSection();
+</script>
+</body>
+</html>

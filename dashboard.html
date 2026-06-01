@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Welly 審稿評分個人儀表板</title>
+<style>
+:root { color-scheme: light; }
+body { margin: 0; padding: 24px 20px; background: #f9f8f4; color: #1a1a1a; font-family: -apple-system, "Helvetica Neue", "PingFang TC", "Microsoft JhengHei", sans-serif; line-height: 1.6; }
+.container { max-width: 1100px; margin: 0 auto; }
+.header { text-align: center; margin-bottom: 24px; }
+.title { font-size: 24px; font-weight: 500; margin: 0 0 6px; }
+.subtitle { font-size: 13px; color: #6b6b6b; margin: 0; }
+.nav-back { display: inline-block; font-size: 12px; color: #2b6cb0; text-decoration: none; margin-bottom: 12px; }
+.nav-back:hover { text-decoration: underline; }
+
+.card { background: #fff; border-radius: 12px; padding: 18px 22px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+.filter-bar { display: flex; gap: 14px; align-items: end; flex-wrap: wrap; }
+.filter-cell { display: flex; flex-direction: column; gap: 6px; }
+.filter-cell label { font-size: 12px; color: #555; font-weight: 500; }
+select { border: 0.5px solid rgba(0,0,0,0.18); border-radius: 8px; padding: 8px 12px; font-size: 14px; background: #fff; color: #1a1a1a; font-family: inherit; min-width: 160px; }
+
+.okr-section { background: #eaf3ff; border: 0.5px solid #b8d4f0; border-radius: 10px; padding: 14px 18px; margin-bottom: 14px; }
+.okr-title { font-size: 13px; font-weight: 500; margin: 0 0 8px; color: #1a4480; }
+.okr-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+.okr-cell { background: #fff; border-radius: 8px; padding: 10px 14px; }
+.okr-cell .lbl { font-size: 11px; color: #6b6b6b; margin-bottom: 4px; }
+.okr-cell .val { font-size: 18px; font-weight: 500; line-height: 1.2; }
+.okr-nodata { background: #fef9e7; border-color: #f0d878; }
+
+.metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 14px; }
+.metric { background: #f7f7f5; padding: 14px 16px; border-radius: 10px; }
+.metric .label { font-size: 12px; color: #6b6b6b; margin-bottom: 4px; }
+.metric .value { font-size: 24px; font-weight: 500; line-height: 1.2; }
+.metric .value.pass { color: #1e5a26; }
+.metric .value.fail { color: #8b1a13; }
+
+.section-title { font-size: 15px; font-weight: 500; margin: 20px 0 10px; display: flex; justify-content: space-between; align-items: center; }
+.dl-btn { background: #2b6cb0; color: #fff; border: none; padding: 7px 16px; font-size: 12px; border-radius: 6px; cursor: pointer; font-family: inherit; }
+.dl-btn:hover { background: #245a96; }
+
+.chart-wrap { position: relative; height: 240px; margin: 8px 0 20px; }
+
+.report-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.report-table th { background: #f0f0ed; font-weight: 500; color: #444; font-size: 12px; padding: 8px 10px; border: 0.5px solid rgba(0,0,0,0.12); text-align: center; }
+.report-table th.h-date { background: #d2eaef; }
+.report-table th.h-keyword { background: #d3eccc; }
+.report-table th.h-mode { background: #d3eccc; }
+.report-table th.h-link { background: #f0f0ed; }
+.report-table th.h-score { background: #ffdadc; }
+.report-table td { padding: 6px 10px; border: 0.5px solid rgba(0,0,0,0.08); vertical-align: middle; }
+.report-table td.date-cell { background: #e1f0f3; font-size: 12px; text-align: center; }
+.report-table td.center { text-align: center; }
+.report-table td.score-cell { text-align: center; font-weight: 500; font-variant-numeric: tabular-nums; }
+.report-table .score-over { color: #c23636; font-weight: 600; }
+.report-table .score-ok { color: #1e5a26; }
+.report-table .check-box { display: inline-block; width: 14px; height: 14px; border: 0.5px solid #888; border-radius: 2px; text-align: center; line-height: 13px; font-size: 11px; }
+.report-table .check-box.checked { background: #2b6cb0; border-color: #2b6cb0; color: #fff; }
+.report-table a { color: #1a73e8; text-decoration: none; font-size: 12px; }
+.report-table a:hover { text-decoration: underline; }
+
+.empty { text-align: center; color: #6b6b6b; padding: 50px 20px; font-size: 14px; background: #f7f7f5; border-radius: 10px; }
+.error { background: #fdecea; color: #8b1a13; padding: 14px 16px; border-radius: 8px; font-size: 13px; }
+.loading { text-align: center; color: #6b6b6b; padding: 50px 20px; font-size: 14px; }
+.footer { text-align: center; font-size: 11px; color: #999; margin-top: 30px; padding: 14px 0; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <a href="index.html" class="nav-back">← 回首頁</a>
+    <h1 class="title">Welly 審稿評分個人儀表板</h1>
+    <p class="subtitle">自動讀取 Google Sheet 最新資料，公開查看</p>
+  </div>
+
+  <div class="card">
+    <div class="filter-bar">
+      <div class="filter-cell">
+        <label for="editor_filter">查看編輯</label>
+        <select id="editor_filter">
+          <option value="__all__">全部編輯</option>
+          <option>宋昕芮</option>
+          <option>馮椀筑 Alice</option>
+          <option>葉芳吟</option>
+          <option>王若瑤</option>
+          <option>李昀真</option>
+          <option>黃筱芸</option>
+          <option>鄭宛容</option>
+          <option>羅睿芳</option>
+          <option>黃睿慈</option>
+          <option>蔡瓅萱 Emily</option>
+          <option>呂亭儀 Tiffany</option>
+          <option>尤嘉莉</option>
+        </select>
+      </div>
+      <div class="filter-cell">
+        <label for="month_filter">月份</label>
+        <select id="month_filter"><option value="__all__">全部月份</option></select>
+      </div>
+      <div class="filter-cell">
+        <label for="mode_filter">評分模式</label>
+        <select id="mode_filter">
+          <option value="__all__">全部</option>
+          <option value="架構">架構</option>
+          <option value="文章">文章</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div id="content_area"></div>
+
+  <div class="footer">
+    資料來源：Google Sheet ｜ 部署於 GitHub Pages ｜ 純靜態網站，每次打開讀取最新資料
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js"></script>
+<script>
+// ========================================================
+// 設定：把這裡的 URL 改成你的 Google Sheet 「發佈到網路」CSV URL
+// 取得方式：Sheet → 檔案 → 共用 → 發佈到網路 → 整個文件 → CSV → 複製連結
+// ========================================================
+const SHEET_CSV_URL = 'PASTE_YOUR_PUBLISH_TO_WEB_CSV_URL_HERE';
+
+const NAME_MAP = {
+  '昕芮': '宋昕芮', '芳吟': '葉芳吟', '若瑤': '王若瑤', '昀真': '李昀真',
+  '筱芸': '黃筱芸', '睿芳': '羅睿芳', '睿慈': '黃睿慈', '瓅萱': '蔡瓅萱 Emily',
+  '嘉莉': '尤嘉莉', '宛容': '鄭宛容', '亭儀': '呂亭儀 Tiffany', '亭儀（培訓期）': '呂亭儀 Tiffany'
+};
+const NAME_SKIP_OKR = ['馮椀筑 Alice'];
+
+let allOkrs = {};
+let allRows = [];
+let trendChart = null;
+
+function parseCsv(text){
+  const lines = [];
+  let line = [];
+  let cell = '';
+  let inQuote = false;
+  for(let i = 0; i < text.length; i++){
+    const c = text[i];
+    if(inQuote){
+      if(c === '"'){
+        if(text[i+1] === '"'){ cell += '"'; i++; }
+        else { inQuote = false; }
+      } else { cell += c; }
+    } else {
+      if(c === '"'){ inQuote = true; }
+      else if(c === ','){ line.push(cell); cell = ''; }
+      else if(c === '\n' || c === '\r'){
+        if(c === '\r' && text[i+1] === '\n') i++;
+        line.push(cell); lines.push(line); line = []; cell = '';
+      } else { cell += c; }
+    }
+  }
+  if(cell || line.length) { line.push(cell); lines.push(line); }
+  return lines.map(l => l.map(c => c.trim()));
+}
+
+function splitTables(csvRows){
+  const groups = [];
+  let cur = [];
+  csvRows.forEach(row => {
+    if(row.every(c => !c)){
+      if(cur.length > 0){ groups.push(cur); cur = []; }
+    } else {
+      cur.push(row);
+    }
+  });
+  if(cur.length > 0) groups.push(cur);
+  return groups.map(g => ({
+    headers: g[0],
+    rows: g.slice(1).map(r => {
+      const obj = {};
+      g[0].forEach((h, i) => { obj[h] = r[i] || ''; });
+      return obj;
+    })
+  }));
+}
+
+function parseOkrText(text){
+  const result = { structureLimit: null, articleLimit: null, monthlyTarget: null, isTraining: false };
+  if(text.includes('培訓期') || text.includes('未達及格篇數')){
+    result.isTraining = true;
+    const m = text.match(/不得超過\s*(\d+)\s*%/);
+    if(m) result.unmetCap = parseInt(m[1]);
+    return result;
+  }
+  const ms = text.match(/架構[：:][^；;]*?(\d+)\s*%/);
+  if(ms) result.structureLimit = parseInt(ms[1]);
+  const ma = text.match(/文章[：:][^；;]*?(\d+)\s*%/);
+  if(ma) result.articleLimit = parseInt(ma[1]);
+  const mm = text.match(/達成率[^\d]*(\d+)\s*%/);
+  if(mm) result.monthlyTarget = parseInt(mm[1]);
+  return result;
+}
+
+function getYearMonth(s){
+  const m = (s || '').match(/(\d{4})-(\d{1,2})/);
+  return m ? `${m[1]}-${m[2].padStart(2,'0')}` : '';
+}
+
+function getWriteMonth(r){
+  const dateStr = r['評分日期'];
+  if(!dateStr) return '';
+  const d = new Date(dateStr);
+  if(isNaN(d.getTime())) return getYearMonth(dateStr);
+  const target = new Date(d.valueOf());
+  const dayNr = (d.getDay() + 6) % 7;
+  target.setDate(target.getDate() - dayNr);
+  target.setDate(target.getDate() - 7);
+  return `${target.getFullYear()}-${String(target.getMonth()+1).padStart(2,'0')}`;
+}
+
+function getIsoWeekLabel(dateStr){
+  if(!dateStr) return '';
+  const d = new Date(dateStr);
+  if(isNaN(d.getTime())) return '';
+  const target = new Date(d.valueOf());
+  const dayNr = (d.getDay() + 6) % 7;
+  target.setDate(target.getDate() - dayNr + 3);
+  const firstThursday = new Date(target.getFullYear(), 0, 4);
+  const diff = target - firstThursday;
+  const week = 1 + Math.round(diff / (7 * 24 * 3600 * 1000));
+  return `${target.getFullYear()}-W${String(week).padStart(2,'0')}`;
+}
+
+function weekToDateRange(weekLabel){
+  const m = (weekLabel || '').match(/(\d{4})-W(\d{1,2})/);
+  if(!m) return '';
+  const year = parseInt(m[1]), week = parseInt(m[2]);
+  const jan4 = new Date(year, 0, 4);
+  const jan4Day = jan4.getDay() || 7;
+  const w1Monday = new Date(jan4);
+  w1Monday.setDate(jan4.getDate() - jan4Day + 1);
+  const reviewMon = new Date(w1Monday);
+  reviewMon.setDate(reviewMon.getDate() + (week - 1) * 7);
+  const writeMon = new Date(reviewMon);
+  writeMon.setDate(reviewMon.getDate() - 7);
+  const writeFri = new Date(writeMon);
+  writeFri.setDate(writeMon.getDate() + 4);
+  const fmt = d => `${d.getMonth()+1}/${d.getDate()}`;
+  return `${fmt(writeMon)}-${fmt(writeFri)}`;
+}
+
+function isPassByOkr(row, okr){
+  const score = parseFloat(row['總扣分_百分比'] || 0);
+  if(!okr) return null;
+  if(okr.isTraining) return score <= 20;
+  const mode = row['評分模式'];
+  if(mode === '架構' && okr.structureLimit != null) return score <= okr.structureLimit;
+  if(mode === '文章' && okr.articleLimit != null) return score <= okr.articleLimit;
+  return null;
+}
+
+function isOptExisting(row){
+  return (row['文章名稱'] || '').includes('優化');
+}
+
+function buildOkrSection(editorName){
+  if(editorName === '__all__') return '';
+  if(NAME_SKIP_OKR.includes(editorName)){
+    return `<div class="okr-section okr-nodata"><h3 class="okr-title">OKR 目標</h3><div style="font-size:13px; color:#7a5a00">${editorName} 暫不設定 OKR</div></div>`;
+  }
+  const okr = allOkrs[editorName];
+  if(!okr){
+    return `<div class="okr-section okr-nodata"><h3 class="okr-title">OKR 目標</h3><div style="font-size:13px; color:#7a5a00">尚未找到 ${editorName} 的 OKR</div></div>`;
+  }
+  if(okr.isTraining){
+    return `<div class="okr-section"><h3 class="okr-title">OKR 目標（培訓期）</h3>
+      <div class="okr-grid">
+        <div class="okr-cell"><div class="lbl">每週未達及格篇數</div><div class="val">≤ ${okr.unmetCap || 30}%</div></div>
+      </div></div>`;
+  }
+  return `<div class="okr-section"><h3 class="okr-title">OKR 目標</h3>
+    <div class="okr-grid">
+      <div class="okr-cell"><div class="lbl">架構修改幅度上限</div><div class="val">≤ ${okr.structureLimit ?? '—'}%</div></div>
+      <div class="okr-cell"><div class="lbl">文章修改幅度上限</div><div class="val">≤ ${okr.articleLimit ?? '—'}%</div></div>
+      <div class="okr-cell"><div class="lbl">每月達成率目標</div><div class="val">${okr.monthlyTarget != null ? '≥ ' + okr.monthlyTarget + '%' : '—'}</div></div>
+    </div></div>`;
+}
+
+function calcStats(rows, okr){
+  if(rows.length === 0) return { count: 0, avg: 0, passRate: 0, failCount: 0, passCount: 0 };
+  let passCount = 0, total = 0;
+  rows.forEach(r => {
+    total += parseFloat(r['總扣分_百分比']) || 0;
+    if(isPassByOkr(r, okr)) passCount++;
+  });
+  return {
+    count: rows.length,
+    avg: total / rows.length,
+    passRate: passCount / rows.length * 100,
+    passCount,
+    failCount: rows.length - passCount,
+  };
+}
+
+function buildReportTable(filtered, okr){
+  if(filtered.length === 0) return '';
+  const groups = {};
+  filtered.forEach(r => {
+    const wk = getIsoWeekLabel(r['評分日期']) || '';
+    if(!groups[wk]) groups[wk] = [];
+    groups[wk].push(r);
+  });
+  const weeks = Object.keys(groups).sort();
+  let html = `<table class="report-table">
+    <thead><tr>
+      <th class="h-date">日期</th>
+      <th>撰文編輯</th>
+      <th class="h-keyword">關鍵字</th>
+      <th class="h-mode">架構</th>
+      <th class="h-mode">文章</th>
+      <th class="h-mode">優化既有頁</th>
+      <th class="h-link">連結</th>
+      <th class="h-score">文章評級 / 修改幅度</th>
+    </tr></thead><tbody>`;
+  weeks.forEach(wk => {
+    const rows = groups[wk];
+    rows.forEach((r, idx) => {
+      const isFirst = idx === 0;
+      const score = parseFloat(r['總扣分_百分比'] || 0);
+      const pass = isPassByOkr(r, okr);
+      const scoreClass = pass === false ? 'score-over' : (pass === true ? 'score-ok' : '');
+      const mode = r['評分模式'] || '';
+      const opt = isOptExisting(r);
+      const isStruct = mode === '架構' && !opt;
+      const isArticle = mode === '文章' && !opt;
+      const chk = on => `<span class="check-box ${on ? 'checked' : ''}">${on ? '✓' : ''}</span>`;
+      html += `<tr>
+        ${isFirst ? `<td class="date-cell" rowspan="${rows.length}">${weekToDateRange(wk)}</td>` : ''}
+        <td class="center">${r['撰文編輯'] || ''}</td>
+        <td>${r['文章名稱'] || ''}</td>
+        <td class="center">${chk(isStruct)}</td>
+        <td class="center">${chk(isArticle)}</td>
+        <td class="center">${chk(opt)}</td>
+        <td class="center">${r['文章連結'] ? `<a href="${r['文章連結']}" target="_blank" rel="noopener">開啟</a>` : ''}</td>
+        <td class="score-cell ${scoreClass}">${score.toFixed(1)}%</td>
+      </tr>`;
+    });
+  });
+  html += '</tbody></table>';
+  return html;
+}
+
+function buildMarkdown(editor, filtered, okr){
+  const lines = [];
+  lines.push(`# ${editor === '__all__' ? '全部編輯' : editor} 審稿評分統計`);
+  lines.push('');
+  if(editor !== '__all__' && okr){
+    if(okr.isTraining){
+      lines.push(`> **OKR（培訓期）**：未達及格 ≤ ${okr.unmetCap || 30}%`);
+    } else {
+      const parts = [];
+      if(okr.structureLimit != null) parts.push(`架構 ≤ ${okr.structureLimit}%`);
+      if(okr.articleLimit != null) parts.push(`文章 ≤ ${okr.articleLimit}%`);
+      if(okr.monthlyTarget != null) parts.push(`月達成率 ≥ ${okr.monthlyTarget}%`);
+      lines.push(`> **OKR**：${parts.join(' ｜ ')}`);
+    }
+  }
+  lines.push(`> **總篇數**：${filtered.length} 筆`);
+  lines.push('');
+  lines.push('| 日期 | 撰文編輯 | 關鍵字 | 模式 | 修改幅度 | 評等 | 審稿人 |');
+  lines.push('| --- | --- | --- | --- | --- | --- | --- |');
+  filtered.sort((a, b) => (a['評分日期']||'').localeCompare(b['評分日期']||'')).forEach(r => {
+    const score = parseFloat(r['總扣分_百分比'] || 0);
+    const pass = isPassByOkr(r, okr);
+    const emoji = pass ? '🟢' : (pass === false ? '🔴' : '⚪');
+    const link = r['文章連結'] ? `[${r['文章名稱']}](${r['文章連結']})` : r['文章名稱'];
+    const wk = getIsoWeekLabel(r['評分日期']) || '';
+    const grade = pass === true ? '及格' : (pass === false ? '不及格' : '—');
+    lines.push(`| ${weekToDateRange(wk)} | ${r['撰文編輯']||''} | ${link} | ${r['評分模式']||''} | ${emoji} ${score.toFixed(0)}% | ${grade} | ${r['審稿人']||''} |`);
+  });
+  return lines.join('\n');
+}
+
+function downloadMarkdown(editor, filtered, okr){
+  const md = buildMarkdown(editor, filtered, okr);
+  const blob = new Blob([md], { type: 'text/markdown' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${editor === '__all__' ? '全部' : editor}_審稿統計.md`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function render(){
+  const editorVal = document.getElementById('editor_filter').value;
+  const monthVal = document.getElementById('month_filter').value;
+  const modeVal = document.getElementById('mode_filter').value;
+
+  const hash = new URLSearchParams();
+  if(editorVal !== '__all__') hash.set('editor', editorVal);
+  if(monthVal !== '__all__') hash.set('month', monthVal);
+  if(modeVal !== '__all__') hash.set('mode', modeVal);
+  history.replaceState(null, '', hash.toString() ? '#' + hash.toString() : '#');
+
+  let filtered = allRows.slice();
+  if(editorVal !== '__all__') filtered = filtered.filter(r => r['撰文編輯'] === editorVal);
+  if(modeVal !== '__all__') filtered = filtered.filter(r => r['評分模式'] === modeVal);
+  if(monthVal !== '__all__') filtered = filtered.filter(r => getWriteMonth(r) === monthVal);
+
+  const okr = editorVal !== '__all__' ? allOkrs[editorVal] : null;
+  const stats = calcStats(filtered, okr);
+  const passColor = (okr && okr.monthlyTarget != null)
+    ? (stats.passRate >= okr.monthlyTarget ? 'pass' : 'fail')
+    : (stats.passRate >= 80 ? 'pass' : (stats.passRate >= 50 ? '' : 'fail'));
+
+  const monthMap = {};
+  filtered.forEach(r => {
+    const ym = getWriteMonth(r);
+    if(!ym) return;
+    if(!monthMap[ym]) monthMap[ym] = { sum: 0, count: 0 };
+    monthMap[ym].sum += parseFloat(r['總扣分_百分比']) || 0;
+    monthMap[ym].count++;
+  });
+  const months = Object.keys(monthMap).sort();
+
+  document.getElementById('content_area').innerHTML = `
+    <div class="card">
+      ${buildOkrSection(editorVal)}
+      <div class="metric-grid">
+        <div class="metric"><div class="label">總篇數</div><div class="value">${stats.count}</div></div>
+        <div class="metric"><div class="label">平均扣分</div><div class="value">-${stats.avg.toFixed(1)}%</div></div>
+        <div class="metric"><div class="label">達標率${okr && okr.monthlyTarget != null ? '（目標 ≥' + okr.monthlyTarget + '%）' : ''}</div><div class="value ${passColor}">${stats.passRate.toFixed(1)}%</div></div>
+        <div class="metric"><div class="label">未達標篇數</div><div class="value ${stats.failCount > 0 ? 'fail' : ''}">${stats.failCount}</div></div>
+      </div>
+      ${months.length >= 2 ? `
+        <div class="section-title">月度平均扣分趨勢</div>
+        <div class="chart-wrap"><canvas id="trend_chart" role="img" aria-label="月度平均扣分趨勢"
+          data-months='${JSON.stringify(months)}'
+          data-avg='${JSON.stringify(months.map(m => +(monthMap[m].sum / monthMap[m].count).toFixed(1)))}'></canvas></div>
+      ` : ''}
+      <div class="section-title">
+        <span>個人審稿統計表（共 ${filtered.length} 筆）</span>
+        <button class="dl-btn" id="dl_md_btn">下載 Markdown</button>
+      </div>
+      ${filtered.length === 0 ? '<div class="empty">此條件下無評分紀錄</div>' : buildReportTable(filtered, okr)}
+    </div>
+  `;
+
+  document.getElementById('dl_md_btn').addEventListener('click', () => downloadMarkdown(editorVal, filtered, okr));
+
+  if(months.length >= 2){
+    const canvas = document.getElementById('trend_chart');
+    const monthData = JSON.parse(canvas.dataset.months);
+    const avgData = JSON.parse(canvas.dataset.avg);
+    if(trendChart) trendChart.destroy();
+    trendChart = new Chart(canvas.getContext('2d'), {
+      type: 'line',
+      data: { labels: monthData, datasets: [{ label: '平均扣分 %', data: avgData, borderColor: '#d4537e', backgroundColor: 'rgba(212,83,126,0.1)', tension: 0.3, fill: true }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+    });
+  }
+}
+
+async function loadData(){
+  const area = document.getElementById('content_area');
+  area.innerHTML = '<div class="loading">讀取資料中...</div>';
+  if(SHEET_CSV_URL === 'PASTE_YOUR_PUBLISH_TO_WEB_CSV_URL_HERE'){
+    area.innerHTML = `<div class="error">尚未設定 Google Sheet publish-to-web URL。請編輯 dashboard.html，把 <code>SHEET_CSV_URL</code> 換成你 Sheet 發佈到網路後的 CSV URL。詳細步驟見 README.md。</div>`;
+    return;
+  }
+  try {
+    const res = await fetch(SHEET_CSV_URL);
+    if(!res.ok) throw new Error('fetch failed: ' + res.status);
+    const text = await res.text();
+    const rows = parseCsv(text);
+    const tables = splitTables(rows);
+
+    allOkrs = {};
+    allRows = [];
+    tables.forEach(t => {
+      const isOkr = t.headers.some(h => h.includes('編輯') && !h.includes('撰文'));
+      const isScore = t.headers.some(h => h.includes('評分日期') || h.includes('總扣分'));
+      if(isOkr){
+        t.rows.forEach(r => {
+          const short = (r['編輯'] || '').replace(/\s+/g, '').replace(/[（(].*?[）)]/g, '');
+          const full = NAME_MAP[short] || NAME_MAP[(r['編輯'] || '').replace(/\s+/g, '')] || short;
+          const okrText = Object.values(r).filter((_, i) => i > 0).join(' ');
+          if(full) allOkrs[full] = parseOkrText(okrText);
+        });
+      } else if(isScore){
+        t.rows.forEach(r => { if(r['撰文編輯']) allRows.push(r); });
+      }
+    });
+
+    const months = [...new Set(allRows.map(r => getWriteMonth(r)).filter(m => m))].sort().reverse();
+    document.getElementById('month_filter').innerHTML =
+      '<option value="__all__">全部月份</option>' + months.map(m => `<option value="${m}">${m}</option>`).join('');
+
+    const hashParams = new URLSearchParams(location.hash.slice(1));
+    const e = hashParams.get('editor'), mo = hashParams.get('month'), md = hashParams.get('mode');
+    if(e){
+      const opts = [...document.getElementById('editor_filter').options].map(o => o.value);
+      if(opts.includes(e)) document.getElementById('editor_filter').value = e;
+    }
+    if(mo) document.getElementById('month_filter').value = mo;
+    if(md) document.getElementById('mode_filter').value = md;
+
+    render();
+  } catch(e){
+    area.innerHTML = `<div class="error">讀取錯誤：${e.message || e}<br><br>請確認 SHEET_CSV_URL 是否正確設定，且 Google Sheet 已「發佈到網路」</div>`;
+  }
+}
+
+['editor_filter', 'month_filter', 'mode_filter'].forEach(id =>
+  document.getElementById(id).addEventListener('change', render)
+);
+
+loadData();
+</script>
+</body>
+</html>
