@@ -159,6 +159,7 @@ a.btn:hover { background: #f5f5f5; }
     <div class="grade" id="grade_text">—</div>
   </div>
   <div style="margin-left: auto;">
+    <button class="btn primary" id="calc_total_btn">計算總扣分</button>
     <button class="btn primary" id="gen_tsv_btn">產出 TSV</button>
     <button class="btn" id="reset_btn">清空計次</button>
   </div>
@@ -399,10 +400,19 @@ document.getElementById('add_other_btn').addEventListener('click', () => {
   otherEntries.push({ desc: '', tier: 2 });
   saveOtherEntries();
   renderOtherSection();
+  updateSummary();
   setTimeout(() => {
     const inputs = document.querySelectorAll('.other-desc');
     if(inputs.length > 0) inputs[inputs.length - 1].focus();
   }, 0);
+});
+
+document.getElementById('calc_total_btn').addEventListener('click', () => {
+  updateSummary();
+  const num = document.getElementById('total_pct');
+  num.style.transition = 'none';
+  num.style.opacity = '0.35';
+  setTimeout(() => { num.style.transition = 'opacity 0.35s'; num.style.opacity = '1'; }, 30);
 });
 
 document.getElementById('gen_tsv_btn').addEventListener('click', () => {
