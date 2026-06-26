@@ -106,11 +106,8 @@ select { border: 0.5px solid rgba(0,0,0,0.18); border-radius: 8px; padding: 8px 
         <select id="editor_filter">
           <option value="__all__">全部編輯</option>
           <option>宋昕芮</option>
-          <option>馮椀筑 Alice</option>
           <option>葉芳吟</option>
           <option>王若瑤</option>
-          <option>李昀真</option>
-          <option>黃筱芸</option>
           <option>鄭宛容</option>
           <option>羅睿芳</option>
           <option>黃睿慈</option>
@@ -155,11 +152,11 @@ const OKR_CSV_URL = SHEET_URL_TEMPLATE(OKR_SHEET_NAME);
 const DATA_CSV_URL = SHEET_URL_TEMPLATE(DATA_SHEET_NAME);
 
 const NAME_MAP = {
-  '昕芮': '宋昕芮', '芳吟': '葉芳吟', '若瑤': '王若瑤', '昀真': '李昀真',
-  '筱芸': '黃筱芸', '睿芳': '羅睿芳', '睿慈': '黃睿慈', '瓅萱': '蔡瓅萱 Emily',
+  '昕芮': '宋昕芮', '芳吟': '葉芳吟', '若瑤': '王若瑤',
+  '睿芳': '羅睿芳', '睿慈': '黃睿慈', '瓅萱': '蔡瓅萱 Emily',
   '嘉莉': '尤嘉莉', '宛容': '鄭宛容', '亭儀': '呂亭儀 Tiffany', '亭儀（培訓期）': '呂亭儀 Tiffany'
 };
-const NAME_SKIP_OKR = ['馮椀筑 Alice'];
+const NAME_SKIP_OKR = [];
 
 let allOkrs = {};
 let allRows = [];
@@ -552,16 +549,13 @@ function parseDetail(r){
 function buildDetailBreakdown(r){
   const det = parseDetail(r);
   if(!det.length) return '<div class="detail-empty">此篇無扣分明細（扣分明細_JSON 為空或格式異常）</div>';
-  const score = parseFloat(r['總扣分_百分比'] || 0);
-  let html = '<table class="detail-table"><thead><tr><th>扣分項目</th><th class="c">每次</th><th class="c">次數</th><th class="c">小計</th><th>占總扣分</th></tr></thead><tbody>';
+  let html = '<table class="detail-table"><thead><tr><th>扣分項目</th><th class="c">每次</th><th class="c">次數</th><th class="c">小計</th></tr></thead><tbody>';
   det.forEach((d, i) => {
-    const pct = (score > 0 && d.subtotal != null) ? Math.round(d.subtotal / score * 100) : 0;
     html += `<tr class="${i === 0 ? 'top-driver' : ''}">
       <td>${d.item}${d.tier == null ? ' <span class="detail-unknown">(未知權重)</span>' : ''}</td>
       <td class="c">${d.tier != null ? '-' + d.tier + '%' : '—'}</td>
       <td class="c">${d.count}</td>
       <td class="c subtotal">${d.subtotal != null ? '-' + d.subtotal + '%' : '—'}</td>
-      <td><div style="display:flex;align-items:center;gap:6px;"><span style="min-width:32px;">${d.tier != null ? pct + '%' : '—'}</span><div class="barwrap"><div class="bar" style="width:${pct}%"></div></div></div></td>
     </tr>`;
   });
   html += '</tbody></table>';
@@ -605,18 +599,17 @@ function buildAnalysisCard(filtered){
 
 function downloadDetailXlsx(editor, rows){
   if(!rows.length){ alert('沒有可匯出的高幅度文章'); return; }
-  const HEAD = ['文章名稱', '撰文編輯', '模式', '日期', '總扣分%', '扣分項目', '每次%', '次數', '小計%', '占總扣分%'];
+  const HEAD = ['文章名稱', '撰文編輯', '模式', '日期', '總扣分%', '扣分項目', '每次%', '次數', '小計%'];
   const aoa = [HEAD.slice()];
   rows.forEach(r => {
     const score = parseFloat(r['總扣分_百分比'] || 0);
     const wk = getIsoWeekLabel(r['評分日期']) || '';
     const det = parseDetail(r);
     if(!det.length){
-      aoa.push([r['文章名稱'] || '', r['撰文編輯'] || '', r['評分模式'] || '', weekToDateRange(wk), score, '(無明細)', '', '', '', '']);
+      aoa.push([r['文章名稱'] || '', r['撰文編輯'] || '', r['評分模式'] || '', weekToDateRange(wk), score, '(無明細)', '', '', '']);
       return;
     }
     det.forEach((d, i) => {
-      const pct = (score > 0 && d.subtotal != null) ? Math.round(d.subtotal / score * 100) : '';
       aoa.push([
         i === 0 ? (r['文章名稱'] || '') : '',
         i === 0 ? (r['撰文編輯'] || '') : '',
@@ -627,12 +620,11 @@ function downloadDetailXlsx(editor, rows){
         d.tier != null ? d.tier : '',
         d.count,
         d.subtotal != null ? d.subtotal : '',
-        pct,
       ]);
     });
   });
   const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols'] = [{ wch: 24 }, { wch: 12 }, { wch: 7 }, { wch: 12 }, { wch: 9 }, { wch: 22 }, { wch: 7 }, { wch: 6 }, { wch: 8 }, { wch: 10 }];
+  ws['!cols'] = [{ wch: 24 }, { wch: 12 }, { wch: 7 }, { wch: 12 }, { wch: 9 }, { wch: 22 }, { wch: 7 }, { wch: 6 }, { wch: 8 }];
   const thin = { style: 'thin', color: { rgb: 'D0D0D0' } };
   const box = { top: thin, bottom: thin, left: thin, right: thin };
   const range = XLSX.utils.decode_range(ws['!ref']);
