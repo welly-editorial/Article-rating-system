@@ -380,13 +380,24 @@ function buildReportTable(filtered, okr){
 function downloadXlsx(editor, filtered, okr){
   if(!filtered.length){ alert('此條件下無評分紀錄，無法匯出'); return; }
 
-  const HEADERS = ['日期', '撰文編輯', '關鍵字', '架構', '文章', '優化既有頁', '連結', '文章評級 / 修改幅度'];
-  const HFILL  = ['D2EAEF', 'F0F0ED', 'D3ECCC', 'D3ECCC', 'D3ECCC', 'D3ECCC', 'F0F0ED', 'FFDADC'];
+  // 選特定編輯時不需「撰文編輯」欄（資料就是本人）；主管選「全部編輯」才保留
+  const showEditor = editor === '__all__';
+  const HEADERS = showEditor
+    ? ['日期', '撰文編輯', '關鍵字', '架構', '文章', '優化既有頁', '連結', '文章評級 / 修改幅度']
+    : ['日期', '關鍵字', '架構', '文章', '優化既有頁', '連結', '文章評級 / 修改幅度'];
+  const HFILL = showEditor
+    ? ['D2EAEF', 'F0F0ED', 'D3ECCC', 'D3ECCC', 'D3ECCC', 'D3ECCC', 'F0F0ED', 'FFDADC']
+    : ['D2EAEF', 'D3ECCC', 'D3ECCC', 'D3ECCC', 'D3ECCC', 'F0F0ED', 'FFDADC'];
   const NCOL = HEADERS.length;
+  const keywordCol = showEditor ? 2 : 1;
+  const linkCol = NCOL - 2;
+  const scoreCol = NCOL - 1;
 
-  // 標題 / OKR / 總篇數
-  const meta = [`${editor === '__all__' ? '全部編輯' : editor} 審稿評分統計`];
-  if(editor !== '__all__' && okr){
+  const stats = calcStats(filtered, okr);
+
+  // 標題 / OKR / 摘要數據
+  const meta = [`${showEditor ? '全部編輯' : editor} 審稿評分統計`];
+  if(!showEditor && okr){
     if(okr.isTraining){
       meta.push(`OKR（培訓期）：未達及格 ≤ ${okr.unmetCap || 30}%`);
     } else {
@@ -397,7 +408,8 @@ function downloadXlsx(editor, filtered, okr){
       if(parts.length) meta.push(`OKR：${parts.join('　')}`);
     }
   }
-  meta.push(`總篇數：${filtered.length} 筆`);
+  const targetTxt = (okr && okr.monthlyTarget != null) ? `（目標 ≥${okr.monthlyTarget}%）` : '';
+  meta.push(`總篇數 ${stats.count} 篇　｜　平均扣分 -${stats.avg.toFixed(1)}%　｜　達標率 ${stats.passRate.toFixed(1)}%${targetTxt}　｜　未達標 ${stats.failCount} 篇`);
 
   // 依週分組（同畫面）
   const groups = {};
@@ -427,23 +439,26 @@ function downloadXlsx(editor, filtered, okr){
       const isStruct = mode === '架構' && !opt;
       const isArticle = mode === '文章' && !opt;
       scoreColorByRow[aoa.length] = pass === false ? 'C23636' : (pass === true ? '1E5A26' : '1A1A1A');
-      if(r['文章連結']) linkCells.push({ r: aoa.length, c: 6, url: r['文章連結'] });
-      aoa.push([
-        idx === 0 ? weekToDateRange(wk) : '',
-        r['撰文編輯'] || '',
+      if(r['文章連結']) linkCells.push({ r: aoa.length, c: linkCol, url: r['文章連結'] });
+      const row = [idx === 0 ? weekToDateRange(wk) : ''];
+      if(showEditor) row.push(r['撰文編輯'] || '');
+      row.push(
         r['文章名稱'] || '',
         isStruct ? '✓' : '',
         isArticle ? '✓' : '',
         opt ? '✓' : '',
         r['文章連結'] ? '開啟' : '',
-        score.toFixed(1) + '%',
-      ]);
+        score.toFixed(1) + '%'
+      );
+      aoa.push(row);
     });
     if(wkRows.length > 1) merges.push({ s: { r: startRow, c: 0 }, e: { r: startRow + wkRows.length - 1, c: 0 } });
   });
 
   const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols'] = [{ wch: 12 }, { wch: 14 }, { wch: 32 }, { wch: 7 }, { wch: 7 }, { wch: 12 }, { wch: 8 }, { wch: 20 }];
+  ws['!cols'] = showEditor
+    ? [{ wch: 12 }, { wch: 14 }, { wch: 32 }, { wch: 7 }, { wch: 7 }, { wch: 12 }, { wch: 8 }, { wch: 20 }]
+    : [{ wch: 12 }, { wch: 32 }, { wch: 7 }, { wch: 7 }, { wch: 12 }, { wch: 8 }, { wch: 20 }];
   ws['!merges'] = merges;
 
   const thin = { style: 'thin', color: { rgb: 'D0D0D0' } };
@@ -455,7 +470,7 @@ function downloadXlsx(editor, filtered, okr){
   ws[titleAddr].s = { font: { bold: true, sz: 14 }, alignment: { horizontal: 'left', vertical: 'center' } };
   for(let i = 1; i < meta.length; i++){
     const a = XLSX.utils.encode_cell({ r: i, c: 0 });
-    if(ws[a]) ws[a].s = { font: { color: { rgb: '555555' } }, alignment: { horizontal: 'left', vertical: 'center' } };
+    if(ws[a]) ws[a].s = { font: { color: { rgb: '555555' }, bold: i === meta.length - 1 }, alignment: { horizontal: 'left', vertical: 'center' } };
   }
 
   // 表頭列
@@ -472,9 +487,9 @@ function downloadXlsx(editor, filtered, okr){
       if(!ws[a]) ws[a] = { t: 's', v: '' };
       const st = { border: box, alignment: { vertical: 'center' } };
       if(C === 0){ st.fill = { patternType: 'solid', fgColor: { rgb: 'E1F0F3' } }; st.alignment = { horizontal: 'center', vertical: 'center' }; }
-      else if(C === 2){ st.alignment = { horizontal: 'left', vertical: 'center' }; }
-      else if(C === 6){ st.alignment = { horizontal: 'center', vertical: 'center' }; if(ws[a].v === '開啟') st.font = { color: { rgb: '1A73E8' }, underline: true }; }
-      else if(C === 7){ st.alignment = { horizontal: 'center', vertical: 'center' }; st.font = { bold: true, color: { rgb: scoreColorByRow[R] || '1A1A1A' } }; }
+      else if(C === keywordCol){ st.alignment = { horizontal: 'left', vertical: 'center' }; }
+      else if(C === linkCol){ st.alignment = { horizontal: 'center', vertical: 'center' }; if(ws[a].v === '開啟') st.font = { color: { rgb: '1A73E8' }, underline: true }; }
+      else if(C === scoreCol){ st.alignment = { horizontal: 'center', vertical: 'center' }; st.font = { bold: true, color: { rgb: scoreColorByRow[R] || '1A1A1A' } }; }
       else { st.alignment = { horizontal: 'center', vertical: 'center' }; }
       ws[a].s = st;
     }
@@ -485,7 +500,7 @@ function downloadXlsx(editor, filtered, okr){
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, '審稿統計');
-  XLSX.writeFile(wb, `${editor === '__all__' ? '全部' : editor}_審稿統計.xlsx`);
+  XLSX.writeFile(wb, `${showEditor ? '全部' : editor}_審稿統計.xlsx`);
 }
 
 // ── 扣分明細分析（需求 1）──────────────────────────────
