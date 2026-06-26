@@ -63,6 +63,31 @@ select { border: 0.5px solid rgba(0,0,0,0.18); border-radius: 8px; padding: 8px 
 .error { background: #fdecea; color: #8b1a13; padding: 14px 16px; border-radius: 8px; font-size: 13px; }
 .loading { text-align: center; color: #6b6b6b; padding: 50px 20px; font-size: 14px; }
 .footer { text-align: center; font-size: 11px; color: #999; margin-top: 30px; padding: 14px 0; }
+
+.analysis-card { margin-top: 16px; }
+.analysis-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 0 0 14px; }
+.analysis-head .a-title { font-size: 15px; font-weight: 500; }
+.analysis-head .a-count { font-size: 12px; color: #8b1a13; background: #fdecea; padding: 2px 10px; border-radius: 10px; }
+.analysis-head select { min-width: 96px; padding: 6px 10px; }
+.analysis-head .spacer { margin-left: auto; }
+.detail-article { border: 0.5px solid rgba(0,0,0,0.1); border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; }
+.detail-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.detail-head .d-score { font-size: 18px; font-weight: 600; color: #c23636; font-variant-numeric: tabular-nums; }
+.detail-head .d-name { font-size: 14px; font-weight: 500; }
+.detail-head .d-meta { font-size: 12px; color: #6b6b6b; }
+.detail-head a { font-size: 12px; color: #1a73e8; text-decoration: none; margin-left: auto; }
+.detail-head a:hover { text-decoration: underline; }
+.detail-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.detail-table th { background: #f3f1ec; font-weight: 500; color: #555; padding: 6px 10px; border: 0.5px solid rgba(0,0,0,0.1); text-align: left; }
+.detail-table th.c { text-align: center; }
+.detail-table td { padding: 5px 10px; border: 0.5px solid rgba(0,0,0,0.07); vertical-align: middle; }
+.detail-table td.c { text-align: center; font-variant-numeric: tabular-nums; }
+.detail-table td.subtotal { font-weight: 600; color: #c23636; }
+.detail-table tr.top-driver td { background: #fff6f6; }
+.detail-table .barwrap { position: relative; background: #f0e2e2; border-radius: 3px; height: 8px; flex: 1; min-width: 50px; }
+.detail-table .bar { position: absolute; left: 0; top: 0; height: 8px; background: #d4537e; border-radius: 3px; }
+.detail-unknown { color: #b08900; font-size: 11px; }
+.detail-empty { font-size: 12px; color: #999; padding: 6px 0; }
 </style>
 </head>
 <body>
@@ -463,6 +488,150 @@ function downloadXlsx(editor, filtered, okr){
   XLSX.writeFile(wb, `${editor === '__all__' ? '全部' : editor}_審稿統計.xlsx`);
 }
 
+// ── 扣分明細分析（需求 1）──────────────────────────────
+// 每項扣分權重（與評分面板 panel.html 的 ITEMS 一致）
+const ITEMS = {
+  '架構': [
+    { tier: 2, items: ['錯字／統一用字', 'url、slug', '目錄', 'H 標籤', '標題品質', '關鍵字置入', '關鍵字標色', '文字及符號格式', 'CTA', '審核文字'] },
+    { tier: 5, items: ['搜尋意圖、豐富度編排', '內容設計、符合關鍵字分析規劃', '內文邏輯、資訊正確性', '法規問題', '推薦類「內容豐富度」', '推薦類「段落撰寫內容錯誤」'] },
+    { tier: 10, items: ['TA'] },
+    { tier: 15, items: ['改寫幅度'] },
+  ],
+  '文章': [
+    { tier: 2, items: ['錯字／統一用字', '目錄', '字數', 'H 標籤', '標題品質', '關鍵字置入', '關鍵字標色', '文字及符號格式', '內鏈標註', '配圖', '產品圖', '參考資料', 'CTA', '語句通順度'] },
+    { tier: 5, items: ['搜尋意圖', '內容深度、資訊完整度', 'AI 感過重', '資訊正確性', '內文前後邏輯', '段落編排、內容梳理', '過多術語、難度高詞彙', '法規問題'] },
+    { tier: 15, items: ['改寫幅度'] },
+  ],
+};
+
+let detailThreshold = 25;
+
+// 找出某項目在該模式下每次扣幾 %（「其他：xxx (-N%)」直接從 key 取）
+function tierOf(mode, item){
+  const m = String(item).match(/\(-(\d+)%\)\s*$/);
+  if(m) return parseInt(m[1]);
+  for(const md of [mode, '文章', '架構']){
+    const groups = ITEMS[md];
+    if(!groups) continue;
+    for(const g of groups){ if(g.items.includes(item)) return g.tier; }
+  }
+  return null;
+}
+
+// 解析扣分明細 JSON → [{item, tier, count, subtotal}]（依小計降冪）
+function parseDetail(r){
+  const raw = (r['扣分明細_JSON'] || '').trim();
+  if(!raw) return [];
+  let obj;
+  try { obj = JSON.parse(raw); } catch(e){ return []; }
+  const mode = r['評分模式'] || '文章';
+  const out = Object.entries(obj).map(([item, count]) => {
+    const tier = tierOf(mode, item);
+    const cnt = parseInt(count) || 0;
+    return { item: String(item).replace(/\s*\(-\d+%\)\s*$/, ''), tier, count: cnt, subtotal: tier != null ? tier * cnt : null };
+  });
+  out.sort((a, b) => (b.subtotal || 0) - (a.subtotal || 0));
+  return out;
+}
+
+function buildDetailBreakdown(r){
+  const det = parseDetail(r);
+  if(!det.length) return '<div class="detail-empty">此篇無扣分明細（扣分明細_JSON 為空或格式異常）</div>';
+  const score = parseFloat(r['總扣分_百分比'] || 0);
+  let html = '<table class="detail-table"><thead><tr><th>扣分項目</th><th class="c">每次</th><th class="c">次數</th><th class="c">小計</th><th>占總扣分</th></tr></thead><tbody>';
+  det.forEach((d, i) => {
+    const pct = (score > 0 && d.subtotal != null) ? Math.round(d.subtotal / score * 100) : 0;
+    html += `<tr class="${i === 0 ? 'top-driver' : ''}">
+      <td>${d.item}${d.tier == null ? ' <span class="detail-unknown">(未知權重)</span>' : ''}</td>
+      <td class="c">${d.tier != null ? '-' + d.tier + '%' : '—'}</td>
+      <td class="c">${d.count}</td>
+      <td class="c subtotal">${d.subtotal != null ? '-' + d.subtotal + '%' : '—'}</td>
+      <td><div style="display:flex;align-items:center;gap:6px;"><span style="min-width:32px;">${d.tier != null ? pct + '%' : '—'}</span><div class="barwrap"><div class="bar" style="width:${pct}%"></div></div></div></td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  return html;
+}
+
+function buildAnalysisCard(filtered){
+  const TH = [{ v: 0, t: '全部' }, { v: 15, t: '> 15%' }, { v: 20, t: '> 20%' }, { v: 25, t: '> 25%' }];
+  const rows = filtered.filter(r => (parseFloat(r['總扣分_百分比']) || 0) > detailThreshold)
+    .sort((a, b) => (parseFloat(b['總扣分_百分比']) || 0) - (parseFloat(a['總扣分_百分比']) || 0));
+  let body;
+  if(rows.length === 0){
+    body = '<div class="empty">此條件下沒有高於門檻的文章</div>';
+  } else {
+    body = rows.map(r => {
+      const score = parseFloat(r['總扣分_百分比'] || 0);
+      const wk = getIsoWeekLabel(r['評分日期']) || '';
+      return `<div class="detail-article">
+        <div class="detail-head">
+          <span class="d-score">-${score.toFixed(1)}%</span>
+          <span class="d-name">${r['文章名稱'] || ''}</span>
+          <span class="d-meta">${r['撰文編輯'] || ''} ｜ ${r['評分模式'] || ''} ｜ ${weekToDateRange(wk)} ｜ ${r['審稿人'] || ''}</span>
+          ${r['文章連結'] ? `<a href="${r['文章連結']}" target="_blank" rel="noopener">開啟文章 →</a>` : ''}
+        </div>
+        ${buildDetailBreakdown(r)}
+      </div>`;
+    }).join('');
+  }
+  const opts = TH.map(o => `<option value="${o.v}"${o.v === detailThreshold ? ' selected' : ''}>${o.t}</option>`).join('');
+  return `<div class="card analysis-card">
+    <div class="analysis-head">
+      <span class="a-title">扣分明細分析</span>
+      <span class="a-count">${rows.length} 篇</span>
+      <label style="font-size:12px;color:#555;">高幅度門檻 <select id="detail_threshold">${opts}</select></label>
+      <span class="spacer"></span>
+      ${rows.length ? '<button class="dl-btn" id="dl_detail_btn">下載明細 Excel</button>' : ''}
+    </div>
+    ${body}
+  </div>`;
+}
+
+function downloadDetailXlsx(editor, rows){
+  if(!rows.length){ alert('沒有可匯出的高幅度文章'); return; }
+  const HEAD = ['文章名稱', '撰文編輯', '模式', '日期', '總扣分%', '扣分項目', '每次%', '次數', '小計%', '占總扣分%'];
+  const aoa = [HEAD.slice()];
+  rows.forEach(r => {
+    const score = parseFloat(r['總扣分_百分比'] || 0);
+    const wk = getIsoWeekLabel(r['評分日期']) || '';
+    const det = parseDetail(r);
+    if(!det.length){
+      aoa.push([r['文章名稱'] || '', r['撰文編輯'] || '', r['評分模式'] || '', weekToDateRange(wk), score, '(無明細)', '', '', '', '']);
+      return;
+    }
+    det.forEach((d, i) => {
+      const pct = (score > 0 && d.subtotal != null) ? Math.round(d.subtotal / score * 100) : '';
+      aoa.push([
+        i === 0 ? (r['文章名稱'] || '') : '',
+        i === 0 ? (r['撰文編輯'] || '') : '',
+        i === 0 ? (r['評分模式'] || '') : '',
+        i === 0 ? weekToDateRange(wk) : '',
+        i === 0 ? score : '',
+        d.item,
+        d.tier != null ? d.tier : '',
+        d.count,
+        d.subtotal != null ? d.subtotal : '',
+        pct,
+      ]);
+    });
+  });
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{ wch: 24 }, { wch: 12 }, { wch: 7 }, { wch: 12 }, { wch: 9 }, { wch: 22 }, { wch: 7 }, { wch: 6 }, { wch: 8 }, { wch: 10 }];
+  const thin = { style: 'thin', color: { rgb: 'D0D0D0' } };
+  const box = { top: thin, bottom: thin, left: thin, right: thin };
+  const range = XLSX.utils.decode_range(ws['!ref']);
+  HEAD.forEach((h, c) => { const a = XLSX.utils.encode_cell({ r: 0, c }); ws[a].s = { fill: { patternType: 'solid', fgColor: { rgb: 'F0D8DA' } }, font: { bold: true, color: { rgb: '333333' } }, alignment: { horizontal: 'center', vertical: 'center' }, border: box }; });
+  for(let R = 1; R <= range.e.r; R++) for(let C = 0; C < HEAD.length; C++){
+    const a = XLSX.utils.encode_cell({ r: R, c: C });
+    if(!ws[a]) ws[a] = { t: 's', v: '' };
+    ws[a].s = { border: box, alignment: (C === 0 || C === 5) ? { horizontal: 'left', vertical: 'center' } : { horizontal: 'center', vertical: 'center' } };
+  }
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '扣分明細分析');
+  XLSX.writeFile(wb, `${editor === '__all__' ? '全部' : editor}_高幅度扣分明細.xlsx`);
+}
+
 function render(){
   const editorVal = document.getElementById('editor_filter').value;
   const monthVal = document.getElementById('month_filter').value;
@@ -516,9 +685,19 @@ function render(){
       </div>
       ${filtered.length === 0 ? '<div class="empty">此條件下無評分紀錄</div>' : buildReportTable(filtered, okr)}
     </div>
+    ${filtered.length === 0 ? '' : buildAnalysisCard(filtered)}
   `;
 
   document.getElementById('dl_xlsx_btn').addEventListener('click', () => downloadXlsx(editorVal, filtered, okr));
+
+  const dtSel = document.getElementById('detail_threshold');
+  if(dtSel) dtSel.addEventListener('change', e => { detailThreshold = parseInt(e.target.value) || 0; render(); });
+  const dtBtn = document.getElementById('dl_detail_btn');
+  if(dtBtn) dtBtn.addEventListener('click', () => {
+    const arows = filtered.filter(r => (parseFloat(r['總扣分_百分比']) || 0) > detailThreshold)
+      .sort((a, b) => (parseFloat(b['總扣分_百分比']) || 0) - (parseFloat(a['總扣分_百分比']) || 0));
+    downloadDetailXlsx(editorVal, arows);
+  });
 
   if(months.length >= 2){
     const canvas = document.getElementById('trend_chart');
