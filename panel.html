@@ -96,7 +96,8 @@ a.btn:hover { background: #f5f5f5; }
     </div>
     <div class="form-row full">
       <label for="doc_url">Google Doc 連結</label>
-      <input type="url" id="doc_url" placeholder="https://docs.google.com/document/d/...">
+      <input type="url" id="doc_url" placeholder="貼上 Doc 連結會自動帶入文章名稱">
+      <span id="doc_title_status" class="hint" style="display:none;"></span>
     </div>
     <div class="form-row">
       <label for="editor">撰文編輯</label>
@@ -187,6 +188,9 @@ a.btn:hover { background: #f5f5f5; }
 const SHEET_ID = '1sWt0CUDSBWzLmDNK1H2pwWNI0zhpvTnOByjZMI3P5gA';
 const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit`;
 
+// 貼 Doc 連結自動帶出文章名：部署 Apps Script 後把下面換成你的 /exec 網址
+const DOC_TITLE_API = 'https://script.google.com/macros/s/AKfycbzdJ-SYphezKskS3vWfTrNIbdnglzTyHXFUMZ1NoT-a7KuDfdEOKIfwT8BurZjGKA3N/exec';
+
 const ITEMS = {
   '架構': [
     { tier: 2, items: ['錯字／統一用字', 'url、slug', '目錄', 'H 標籤', '標題品質', '關鍵字置入', '關鍵字標色', '文字及符號格式', 'CTA', '審核文字'] },
@@ -226,6 +230,46 @@ function saveOtherEntries(){
   if(v) el.value = v;
   el.addEventListener('change', e => localStorage.setItem('rsp_' + id, e.target.value));
 });
+
+// 貼 Doc 連結 → 呼叫 Apps Script 取得 Doc 檔名，自動填入文章名稱
+function extractDocId(url){
+  const m = String(url).match(/\/d\/([a-zA-Z0-9_-]{20,})/);
+  return m ? m[1] : '';
+}
+async function autofillArticleName(url){
+  const statusEl = document.getElementById('doc_title_status');
+  const nameEl = document.getElementById('article_name');
+  const id = extractDocId(url);
+  if(!id) return;
+  if(DOC_TITLE_API.indexOf('PASTE_YOUR') === 0) return; // 尚未設定 API
+  statusEl.style.display = 'inline';
+  statusEl.style.color = '#6b6b6b';
+  statusEl.textContent = '讀取文件標題中…';
+  try {
+    const res = await fetch(`${DOC_TITLE_API}?id=${encodeURIComponent(id)}`);
+    const data = await res.json();
+    if(data && data.ok && data.title){
+      if(!nameEl.value.trim()){
+        nameEl.value = data.title;
+        localStorage.setItem('rsp_article_name', data.title);
+      }
+      statusEl.style.color = '#1e5a26';
+      statusEl.textContent = '已帶入文件標題：' + data.title + (nameEl.value === data.title ? '' : '（文章名已有值，未覆蓋）');
+    } else {
+      statusEl.style.color = '#7a5a00';
+      statusEl.textContent = '讀不到標題，請手動輸入（' + ((data && data.error) || '無權限或連結錯誤') + '）';
+    }
+  } catch(e){
+    statusEl.style.color = '#7a5a00';
+    statusEl.textContent = '讀取失敗，請手動輸入';
+  }
+}
+(function(){
+  const docEl = document.getElementById('doc_url');
+  let t = null;
+  docEl.addEventListener('paste', () => setTimeout(() => autofillArticleName(docEl.value), 50));
+  docEl.addEventListener('change', () => { clearTimeout(t); t = setTimeout(() => autofillArticleName(docEl.value), 300); });
+})();
 
 const lastMode = localStorage.getItem('rsp_mode');
 if(lastMode && ITEMS[lastMode]){
