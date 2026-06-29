@@ -692,19 +692,9 @@ function render(){
       </div>
       ${filtered.length === 0 ? '<div class="empty">此條件下無評分紀錄</div>' : buildReportTable(filtered, okr)}
     </div>
-    ${filtered.length === 0 ? '' : buildAnalysisCard(filtered)}
   `;
 
   document.getElementById('dl_xlsx_btn').addEventListener('click', () => downloadXlsx(editorVal, filtered, okr));
-
-  const dtSel = document.getElementById('detail_threshold');
-  if(dtSel) dtSel.addEventListener('change', e => { detailThreshold = parseInt(e.target.value) || 0; render(); });
-  const dtBtn = document.getElementById('dl_detail_btn');
-  if(dtBtn) dtBtn.addEventListener('click', () => {
-    const arows = filtered.filter(r => (parseFloat(r['總扣分_百分比']) || 0) > detailThreshold)
-      .sort((a, b) => (parseFloat(b['總扣分_百分比']) || 0) - (parseFloat(a['總扣分_百分比']) || 0));
-    downloadDetailXlsx(editorVal, arows);
-  });
 
   if(months.length >= 2){
     const canvas = document.getElementById('trend_chart');
