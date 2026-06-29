@@ -771,7 +771,12 @@ async function loadData(){
     if(mo) document.getElementById('month_filter').value = mo;
     if(md) document.getElementById('mode_filter').value = md;
 
-    render();
+    // 一打開先不顯示下方統整明細；除非網址有帶條件（深連結）。選了上方任一條件才顯示。
+    if(e || mo || md){
+      render();
+    } else {
+      area.innerHTML = '<div class="empty">請從上方選擇「查看編輯」（或月份／評分模式），即可顯示統計與扣分明細。</div>';
+    }
   } catch(e){
     area.innerHTML = `<div class="error">讀取錯誤：${e.message || e}<br><br>
       請確認以下三件事：<br>
