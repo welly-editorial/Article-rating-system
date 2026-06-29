@@ -82,6 +82,9 @@ a.btn:hover { background: #f5f5f5; }
 .archive-reminder { margin-top: 14px; padding: 14px 16px; background: #fdecea; border: 0.5px solid #f0a6a2; border-radius: 12px; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
 .archive-reminder .ar-text { flex: 1; font-size: 13px; color: #8b1a13; line-height: 1.6; min-width: 240px; }
 .archive-reminder a.btn { flex-shrink: 0; }
+.prev-score-banner { margin-bottom: 16px; padding: 12px 16px; background: #eaf3ff; border: 0.5px solid #b8d4f0; border-radius: 10px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.prev-score-banner .psb-text { flex: 1; font-size: 13px; color: #1a4480; min-width: 220px; line-height: 1.5; }
+.prev-score-banner .btn { flex-shrink: 0; }
 </style>
 </head>
 <body>
@@ -137,6 +140,11 @@ a.btn:hover { background: #f5f5f5; }
       </div>
     </div>
   </div>
+</div>
+
+<div class="prev-score-banner" id="prev_score_banner" style="display:none;">
+  <span class="psb-text" id="prev_score_text"></span>
+  <button class="btn" id="load_prev_btn">載入先前評分</button>
 </div>
 
 <div id="items_area"></div>
@@ -274,11 +282,81 @@ async function autofillArticleName(url){
     statusEl.textContent = '讀取失敗，請手動輸入';
   }
 }
+// 複審：貼原始 Doc 連結 → 從 Sheet 找這篇先前的評分，可一鍵載入後微調
+const DATA_SHEET_NAMES = ['2026 Q3 統計', '2026 Q2 統計'];
+let prevScoreRow = null;
+
+function parseCsv(text){
+  const lines = []; let line = [], cell = '', q = false;
+  for(let i = 0; i < text.length; i++){ const c = text[i];
+    if(q){ if(c === '"'){ if(text[i+1] === '"'){ cell += '"'; i++; } else q = false; } else cell += c; }
+    else { if(c === '"') q = true; else if(c === ','){ line.push(cell); cell = ''; }
+      else if(c === '\n' || c === '\r'){ if(c === '\r' && text[i+1] === '\n') i++; line.push(cell); lines.push(line); line = []; cell = ''; }
+      else cell += c; } }
+  if(cell || line.length){ line.push(cell); lines.push(line); }
+  return lines.map(l => l.map(c => c.trim()));
+}
+function csvToObjects(text){
+  const rows = parseCsv(text); if(rows.length < 2) return [];
+  const h = rows[0];
+  return rows.slice(1).filter(r => !r.every(c => !c)).map(r => { const o = {}; h.forEach((k, i) => o[k] = r[i] || ''); return o; });
+}
+
+async function checkPreviousScore(url){
+  const banner = document.getElementById('prev_score_banner');
+  const targetId = extractDocId(url);
+  prevScoreRow = null;
+  if(!targetId){ banner.style.display = 'none'; return; }
+  for(const sheet of DATA_SHEET_NAMES){
+    try {
+      const u = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheet)}`;
+      const res = await fetch(u); if(!res.ok) continue;
+      const matches = csvToObjects(await res.text()).filter(r => extractDocId(r['文章連結'] || '') === targetId);
+      if(matches.length){ prevScoreRow = matches[matches.length - 1]; break; }
+    } catch(e){}
+  }
+  if(prevScoreRow){
+    const sc = parseFloat(prevScoreRow['總扣分_百分比'] || 0).toFixed(1);
+    document.getElementById('prev_score_text').textContent =
+      `找到這篇先前的評分：-${sc}%（${prevScoreRow['評分模式'] || ''}｜${prevScoreRow['評分日期'] || ''}｜審稿人 ${prevScoreRow['審稿人'] || ''}）。複審可載入後微調。`;
+    banner.style.display = 'flex';
+  } else {
+    banner.style.display = 'none';
+  }
+}
+
+function applyDetailToPanel(json, mode){
+  counts = {}; otherEntries = [];
+  const set = new Set(); (ITEMS[mode] || []).forEach(g => g.items.forEach(it => set.add(it)));
+  let obj = {}; try { obj = JSON.parse(json || '{}'); } catch(e){}
+  Object.entries(obj).forEach(([k, v]) => { const n = parseInt(v) || 0; if(n <= 0) return;
+    if(set.has(k)){ counts[k] = n; }
+    else { const m = String(k).match(/\(-(\d+)%\)\s*$/); const tier = m ? parseInt(m[1]) : 2;
+      const desc = String(k).replace(/^其他：/, '').replace(/\s*\(-\d+%\)\s*$/, '').trim();
+      for(let i = 0; i < n; i++) otherEntries.push({ desc: desc, tier: tier }); } });
+}
+
+function loadPreviousScore(){
+  if(!prevScoreRow) return;
+  if((Object.keys(counts).length || otherEntries.length) && !confirm('載入會覆蓋目前的計次，確定要載入先前評分嗎？')) return;
+  currentMode = ITEMS[prevScoreRow['評分模式']] ? prevScoreRow['評分模式'] : '文章';
+  localStorage.setItem('rsp_mode', currentMode);
+  document.querySelectorAll('.mode-tab').forEach(t => t.classList.toggle('active', t.dataset.mode === currentMode));
+  applyDetailToPanel(prevScoreRow['扣分明細_JSON'], currentMode);
+  saveCounts(); saveOtherEntries();
+  [['article_name', '文章名稱'], ['editor', '撰文編輯'], ['reviewer', '審稿人']].forEach(([id, col]) => {
+    const el = document.getElementById(id); if(el && prevScoreRow[col] != null){ el.value = prevScoreRow[col]; localStorage.setItem('rsp_' + id, prevScoreRow[col]); } });
+  renderItems(); renderOtherSection(); updateSummary();
+  const st = document.getElementById('doc_title_status'); st.style.display = 'inline'; st.style.color = '#1e5a26'; st.textContent = '已載入先前評分，請開始微調';
+}
+document.getElementById('load_prev_btn').addEventListener('click', loadPreviousScore);
+
 (function(){
   const docEl = document.getElementById('doc_url');
   let t = null;
-  docEl.addEventListener('paste', () => setTimeout(() => autofillArticleName(docEl.value), 50));
-  docEl.addEventListener('change', () => { clearTimeout(t); t = setTimeout(() => autofillArticleName(docEl.value), 300); });
+  const run = () => { autofillArticleName(docEl.value); checkPreviousScore(docEl.value); };
+  docEl.addEventListener('paste', () => setTimeout(run, 50));
+  docEl.addEventListener('change', () => { clearTimeout(t); t = setTimeout(run, 300); });
 })();
 
 const lastMode = localStorage.getItem('rsp_mode');
