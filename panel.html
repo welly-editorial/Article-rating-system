@@ -19,6 +19,10 @@ body { margin: 0; padding: 20px; background: #ffffff; line-height: 1.6; }
 .form-row.full { grid-column: 1 / -1; }
 .form-row label { font-size: 12px; color: #555; font-weight: 500; }
 input[type="text"], input[type="url"], select { border: 0.5px solid rgba(0,0,0,0.18); border-radius: 8px; padding: 8px 12px; font-size: 14px; background: #fff; color: #1a1a1a; font-family: inherit; }
+.input-clear-wrap { position: relative; }
+.input-clear-wrap input { width: 100%; box-sizing: border-box; padding-right: 32px; }
+.clear-input-btn { position: absolute; right: 5px; top: 50%; transform: translateY(-50%); width: 22px; height: 22px; border: none; background: transparent; color: #999; font-size: 15px; line-height: 1; cursor: pointer; border-radius: 50%; padding: 0; font-family: inherit; }
+.clear-input-btn:hover { background: #eceae5; color: #555; }
 
 .mode-tabs { display: flex; gap: 6px; padding: 4px; background: #e8e8e3; border-radius: 8px; }
 .mode-tab { flex: 1; padding: 7px 12px; background: transparent; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; font-family: inherit; color: #6b6b6b; }
@@ -102,7 +106,10 @@ a.btn:hover { background: #f5f5f5; }
     </div>
     <div class="form-row full">
       <label for="doc_url">Google Doc 連結</label>
-      <input type="url" id="doc_url" placeholder="貼上 Doc 連結會自動帶入文章名稱">
+      <div class="input-clear-wrap">
+        <input type="url" id="doc_url" placeholder="貼上 Doc 連結會自動帶入文章名稱">
+        <button type="button" id="clear_doc_url_btn" class="clear-input-btn" title="清空連結" aria-label="清空連結">✕</button>
+      </div>
       <span id="doc_title_status" class="hint" style="display:none;"></span>
     </div>
     <div class="form-row">
@@ -171,6 +178,7 @@ a.btn:hover { background: #f5f5f5; }
     <button class="btn primary" id="calc_total_btn">計算總扣分</button>
     <button class="btn primary" id="gen_tsv_btn">產出 TSV</button>
     <button class="btn" id="reset_btn">清空計次</button>
+    <button class="btn" id="next_article_btn">審下一篇（全部清空）</button>
   </div>
 </div>
 
@@ -359,6 +367,16 @@ document.getElementById('load_prev_btn').addEventListener('click', loadPreviousS
   docEl.addEventListener('change', () => { clearTimeout(t); t = setTimeout(run, 300); });
 })();
 
+document.getElementById('clear_doc_url_btn').addEventListener('click', () => {
+  const docEl = document.getElementById('doc_url');
+  docEl.value = '';
+  localStorage.removeItem('rsp_doc_url');
+  document.getElementById('doc_title_status').style.display = 'none';
+  document.getElementById('prev_score_banner').style.display = 'none';
+  prevScoreRow = null;
+  docEl.focus();
+});
+
 const lastMode = localStorage.getItem('rsp_mode');
 if(lastMode && ITEMS[lastMode]){
   currentMode = lastMode;
@@ -524,6 +542,25 @@ document.getElementById('reset_btn').addEventListener('click', () => {
   saveOtherEntries();
   renderItems();
   renderOtherSection();
+});
+
+document.getElementById('next_article_btn').addEventListener('click', () => {
+  if(!confirm('確定要開始審下一篇嗎？文章名稱／Doc 連結／撰文編輯與所有計次都會清空（審稿人保留）')) return;
+  ['article_name', 'doc_url', 'editor'].forEach(id => {
+    document.getElementById(id).value = '';
+    localStorage.removeItem('rsp_' + id);
+  });
+  document.getElementById('doc_title_status').style.display = 'none';
+  document.getElementById('prev_score_banner').style.display = 'none';
+  prevScoreRow = null;
+  counts = {};
+  otherEntries = [];
+  saveCounts();
+  saveOtherEntries();
+  renderItems();
+  renderOtherSection();
+  updateSummary();
+  document.getElementById('article_name').focus();
 });
 
 document.getElementById('add_other_btn').addEventListener('click', () => {
