@@ -144,12 +144,12 @@ select { border: 0.5px solid rgba(0,0,0,0.18); border-radius: 8px; padding: 8px 
 // ========================================================
 const SHEET_ID = '1sWt0CUDSBWzLmDNK1H2pwWNI0zhpvTnOByjZMI3P5gA';
 const OKR_SHEET_NAME = 'Q2 OKR';
-const DATA_SHEET_NAME = '2026 Q2 統計';
+// 每季開新分頁時，把新分頁名稱加在陣列最前面即可，舊分頁留著不用刪，資料會自動合併去重
+const DATA_SHEET_NAMES = ['2026 Q3 統計', '2026 Q2 統計'];
 
 const SHEET_URL_TEMPLATE = name =>
   `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(name)}`;
 const OKR_CSV_URL = SHEET_URL_TEMPLATE(OKR_SHEET_NAME);
-const DATA_CSV_URL = SHEET_URL_TEMPLATE(DATA_SHEET_NAME);
 
 const NAME_MAP = {
   '昕芮': '宋昕芮', '芳吟': '葉芳吟', '若瑤': '王若瑤',
@@ -726,12 +726,13 @@ async function loadData(){
   area.innerHTML = '<div class="loading">讀取資料中...</div>';
 
   try {
-    // 並行 fetch 兩個分頁
-    const [okrRes, dataRes] = await Promise.all([fetch(OKR_CSV_URL), fetch(DATA_CSV_URL)]);
+    // 並行 fetch OKR 分頁 + 所有季別資料分頁
+    const [okrRes, ...dataResList] = await Promise.all([
+      fetch(OKR_CSV_URL),
+      ...DATA_SHEET_NAMES.map(name => fetch(SHEET_URL_TEMPLATE(name)))
+    ]);
     if(!okrRes.ok) throw new Error(`OKR 分頁讀取失敗（HTTP ${okrRes.status}）：${OKR_SHEET_NAME}`);
-    if(!dataRes.ok) throw new Error(`資料分頁讀取失敗（HTTP ${dataRes.status}）：${DATA_SHEET_NAME}`);
     const okrText = await okrRes.text();
-    const dataText = await dataRes.text();
 
     // 解析 OKR 分頁
     allOkrs = {};
@@ -743,10 +744,24 @@ async function loadData(){
       if(full) allOkrs[full] = parseOkrText(okrText);
     });
 
-    // 解析資料分頁
+    // 解析資料分頁：合併所有季別分頁，單一分頁讀不到就跳過（不擋其他分頁），並依日期＋編輯＋連結＋審稿人去重
     allRows = [];
-    const dataObjects = csvToObjects(dataText);
-    dataObjects.forEach(r => { if(r['撰文編輯']) allRows.push(r); });
+    const seenRowKeys = new Set();
+    let anyDataOk = false;
+    for(let i = 0; i < DATA_SHEET_NAMES.length; i++){
+      const res = dataResList[i];
+      if(!res.ok) continue;
+      anyDataOk = true;
+      const text = await res.text();
+      csvToObjects(text).forEach(r => {
+        if(!r['撰文編輯']) return;
+        const key = [r['評分日期'], r['撰文編輯'], r['文章連結'], r['審稿人']].join('|');
+        if(seenRowKeys.has(key)) return;
+        seenRowKeys.add(key);
+        allRows.push(r);
+      });
+    }
+    if(!anyDataOk) throw new Error(`所有資料分頁都讀取失敗：${DATA_SHEET_NAMES.join('、')}`);
 
     const months = [...new Set(allRows.map(r => getWriteMonth(r)).filter(m => m))].sort().reverse();
     document.getElementById('month_filter').innerHTML =
@@ -771,7 +786,7 @@ async function loadData(){
     area.innerHTML = `<div class="error">讀取錯誤：${e.message || e}<br><br>
       請確認以下三件事：<br>
       1. <code>SHEET_ID</code> 是否正確（從 Sheet 網址 docs.google.com/spreadsheets/d/ 後面那一長串）<br>
-      2. 分頁名稱 <code>OKR_SHEET_NAME</code>（目前：${OKR_SHEET_NAME}）跟 <code>DATA_SHEET_NAME</code>（目前：${DATA_SHEET_NAME}）跟 Sheet 內標籤完全一致<br>
+      2. 分頁名稱 <code>OKR_SHEET_NAME</code>（目前：${OKR_SHEET_NAME}）跟 <code>DATA_SHEET_NAMES</code>（目前：${DATA_SHEET_NAMES.join('、')}）跟 Sheet 內標籤完全一致<br>
       3. Sheet 的共用權限是否設為「知道連結的任何人」可檢視
     </div>`;
   }
