@@ -193,11 +193,13 @@ a.btn:hover { background: #f5f5f5; }
   <h3 style="font-size: 13px; font-weight: 500; margin: 0 0 8px;">① 貼進 Google Sheet 的這一列</h3>
   <div class="tsv-box" id="tsv_text"></div>
   <div class="action-row">
-    <button class="btn primary" id="copy_btn">複製 TSV</button>
+    <button class="btn primary" id="write_sheet_btn">寫入 Sheet（自動送出）</button>
+    <button class="btn" id="copy_btn">複製 TSV</button>
     <a class="btn" href="https://docs.google.com/spreadsheets/d/1sWt0CUDSBWzLmDNK1H2pwWNI0zhpvTnOByjZMI3P5gA/edit" target="_blank" rel="noopener">在 Google Sheet 開啟</a>
     <span id="copy_status" class="status" style="display:none; align-self:center;">已複製，請到 Sheet 貼上</span>
+    <span id="write_status" class="status" style="display:none; align-self:center;"></span>
   </div>
-  <p class="hint">貼上方式：到 Sheet 第一個空白列點 A 欄 → Ctrl/Cmd+V，Sheet 會自動分欄</p>
+  <p class="hint">「寫入 Sheet」會自動送出這一列到雲端，不用再手動貼；網路異常時可以用「複製 TSV」當備援，手動到 Sheet 第一個空白列點 A 欄 → Ctrl/Cmd+V</p>
 
   <h3 style="font-size: 13px; font-weight: 500; margin: 18px 0 8px;">② 貼進 Trello 卡片的摘要</h3>
   <div class="tsv-box" id="trello_text"></div>
@@ -216,6 +218,11 @@ const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit`;
 
 // 貼 Doc 連結自動帶出文章名：部署 Apps Script 後把下面換成你的 /exec 網址
 const DOC_TITLE_API = 'https://script.google.com/macros/s/AKfycbzdJ-SYphezKskS3vWfTrNIbdnglzTyHXFUMZ1NoT-a7KuDfdEOKIfwT8BurZjGKA3N/exec';
+
+// 「寫入 Sheet」：直接把產出 TSV 的那一列送進 Google Sheet，省去手動複製貼上
+// 部署方式跟 TOKEN 都寫在 Skills/review-score-calculator/write-row-gas.gs
+const WRITE_ROW_API = 'https://script.google.com/macros/s/AKfycbxPT_MhAt0X-4MbfZK7oBI2ZaHX7Jc3zO_GRxJ1JDjveBdufHxOOdJQO9B6R5wKLgsYxA/exec';
+const WRITE_ROW_TOKEN = 'SLy5UbRRom05cyYCH21FXeEv7wc622F5';
 
 const ITEMS = {
   '架構': [
@@ -236,6 +243,7 @@ const TIER_LABELS = { 2: '-2% 項', 5: '-5% 項', 10: '-10% 項', 15: '-15% 項'
 let currentMode = '文章';
 let counts = {};
 let otherEntries = [];
+let lastRowCells = null;
 
 function loadCounts(){
   const saved = localStorage.getItem('rsp_counts_' + currentMode);
@@ -555,6 +563,8 @@ document.getElementById('next_article_btn').addEventListener('click', () => {
   prevScoreRow = null;
   counts = {};
   otherEntries = [];
+  lastRowCells = null;
+  document.getElementById('tsv_section').classList.remove('visible');
   saveCounts();
   saveOtherEntries();
   renderItems();
@@ -612,6 +622,8 @@ document.getElementById('gen_tsv_btn').addEventListener('click', () => {
 
   // 8 欄 TSV
   const cells = [today, editor, articleName, docUrl, currentMode, total.toFixed(1), reviewer, jsonStr];
+  lastRowCells = cells;
+  document.getElementById('write_status').style.display = 'none';
   const tsv = cells.map(v => String(v).replace(/\t/g, ' ').replace(/\r?\n/g, ' ')).join('\t');
   document.getElementById('tsv_text').textContent = tsv;
 
@@ -632,6 +644,40 @@ document.getElementById('gen_tsv_btn').addEventListener('click', () => {
 
   document.getElementById('tsv_section').classList.add('visible');
   document.getElementById('tsv_section').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+});
+
+document.getElementById('write_sheet_btn').addEventListener('click', async () => {
+  const statusEl = document.getElementById('write_status');
+  if(!lastRowCells){
+    alert('請先按「產出 TSV」算出這一列資料，再按寫入 Sheet');
+    return;
+  }
+  const [date, editor, articleName, docUrl, mode, totalPct, reviewer, detailJson] = lastRowCells;
+  const btn = document.getElementById('write_sheet_btn');
+  btn.disabled = true;
+  statusEl.style.display = 'inline';
+  statusEl.style.color = '#6b6b6b';
+  statusEl.textContent = '送出中…';
+  try {
+    const res = await fetch(WRITE_ROW_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ token: WRITE_ROW_TOKEN, date, editor, articleName, docUrl, mode, totalPct, reviewer, detailJson })
+    });
+    const data = await res.json();
+    if(data && data.ok){
+      statusEl.style.color = '#1e5a26';
+      statusEl.textContent = '已寫入 Sheet ✓';
+    } else {
+      statusEl.style.color = '#8b1a13';
+      statusEl.textContent = '寫入失敗（' + ((data && data.error) || '未知錯誤') + '），請用「複製 TSV」手動貼上';
+    }
+  } catch(e){
+    statusEl.style.color = '#8b1a13';
+    statusEl.textContent = '寫入失敗（網路異常），請用「複製 TSV」手動貼上';
+  } finally {
+    btn.disabled = false;
+  }
 });
 
 async function copyToClipboard(txt, statusEl){
