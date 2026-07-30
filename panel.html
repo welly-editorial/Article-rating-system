@@ -299,8 +299,20 @@ async function autofillArticleName(url){
   }
 }
 // 複審：貼原始 Doc 連結 → 從 Sheet 找這篇先前的評分，可一鍵載入後微調
-const DATA_SHEET_NAMES = ['2026 Q3 統計', '2026 Q2 統計'];
+// 預設清單只是連不上 Apps Script 時的退回值；正常會被 refreshDataSheetNames() 動態覆蓋成最新分頁清單
+let DATA_SHEET_NAMES = ['2026 Q3 統計', '2026 Q2 統計'];
 let prevScoreRow = null;
+
+async function refreshDataSheetNames(){
+  try {
+    const res = await fetch(`${WRITE_ROW_API}?action=listSheets`);
+    const data = await res.json();
+    if(data && data.ok && Array.isArray(data.sheets) && data.sheets.length){
+      DATA_SHEET_NAMES = data.sheets;
+    }
+  } catch(e){ /* 讀不到就沿用預設清單，不擋主流程 */ }
+}
+refreshDataSheetNames();
 
 function parseCsv(text){
   const lines = []; let line = [], cell = '', q = false;

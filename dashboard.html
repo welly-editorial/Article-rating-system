@@ -144,8 +144,11 @@ select { border: 0.5px solid rgba(0,0,0,0.18); border-radius: 8px; padding: 8px 
 // ========================================================
 const SHEET_ID = '1sWt0CUDSBWzLmDNK1H2pwWNI0zhpvTnOByjZMI3P5gA';
 const OKR_SHEET_NAME = 'Q2 OKR';
-// 每季開新分頁時，把新分頁名稱加在陣列最前面即可，舊分頁留著不用刪，資料會自動合併去重
-const DATA_SHEET_NAMES = ['2026 Q3 統計', '2026 Q2 統計'];
+// Apps Script Web App：doGet(?action=listSheets) 回傳目前所有「YYYY QN 統計」分頁名稱（新到舊）
+// 跟 panel.html 的 WRITE_ROW_API 是同一支，見 Skills/review-score-calculator/write-row-gas.gs
+const LIST_SHEETS_API = 'https://script.google.com/macros/s/AKfycbxPT_MhAt0X-4MbfZK7oBI2ZaHX7Jc3zO_GRxJ1JDjveBdufHxOOdJQO9B6R5wKLgsYxA/exec';
+// 預設清單只是連不上 Apps Script 時的退回值；正常會在 loadData() 開頭被動態覆蓋成最新分頁清單
+let DATA_SHEET_NAMES = ['2026 Q3 統計', '2026 Q2 統計'];
 
 const SHEET_URL_TEMPLATE = name =>
   `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(name)}`;
@@ -726,6 +729,15 @@ async function loadData(){
   area.innerHTML = '<div class="loading">讀取資料中...</div>';
 
   try {
+    // 動態取得目前所有季別分頁名稱，取不到就沿用預設清單，不擋主流程
+    try {
+      const listRes = await fetch(`${LIST_SHEETS_API}?action=listSheets`);
+      const listData = await listRes.json();
+      if(listData && listData.ok && Array.isArray(listData.sheets) && listData.sheets.length){
+        DATA_SHEET_NAMES = listData.sheets;
+      }
+    } catch(e){ /* 讀不到就沿用預設清單 */ }
+
     // 並行 fetch OKR 分頁 + 所有季別資料分頁
     const [okrRes, ...dataResList] = await Promise.all([
       fetch(OKR_CSV_URL),
