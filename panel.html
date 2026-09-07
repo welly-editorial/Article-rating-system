@@ -639,8 +639,9 @@ document.getElementById('gen_tsv_btn').addEventListener('click', () => {
   const tsv = cells.map(v => String(v).replace(/\t/g, ' ').replace(/\r?\n/g, ' ')).join('\t');
   document.getElementById('tsv_text').textContent = tsv;
 
-  // Trello 摘要
-  const trelloLines = [`修改幅度：-${total.toFixed(1)}%（依據統整結果）`];
+  // Trello 摘要：超過 25% 只寫「大於25」，不寫實際數字
+  const trelloPctLabel = total > 25 ? '大於25' : total.toFixed(1);
+  const trelloLines = [`修改幅度：-${trelloPctLabel}%（依據統整結果）`];
   ITEMS[currentMode].forEach(group => {
     group.items.forEach(item => {
       const c = counts[item] || 0;
