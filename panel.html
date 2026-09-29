@@ -84,7 +84,8 @@ a.btn:hover { background: #f5f5f5; }
 .hint { font-size: 12px; color: #6b6b6b; margin: 4px 0 0; }
 .status { font-size: 12px; color: #1e5a26; font-weight: 500; }
 .archive-reminder { margin-top: 14px; padding: 14px 16px; background: #fdecea; border: 0.5px solid #f0a6a2; border-radius: 12px; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
-.archive-reminder .ar-text { flex: 1; font-size: 13px; color: #8b1a13; line-height: 1.6; min-width: 240px; }
+.archive-reminder .ar-text-group { flex: 1; min-width: 240px; display: flex; flex-direction: column; gap: 10px; }
+.archive-reminder .ar-text { font-size: 13px; color: #8b1a13; line-height: 1.6; }
 .archive-reminder a.btn { flex-shrink: 0; }
 .prev-score-banner { margin-bottom: 16px; padding: 12px 16px; background: #eaf3ff; border: 0.5px solid #b8d4f0; border-radius: 10px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .prev-score-banner .psb-text { flex: 1; font-size: 13px; color: #1a4480; min-width: 220px; line-height: 1.5; }
@@ -183,8 +184,14 @@ a.btn:hover { background: #f5f5f5; }
 </div>
 
 <div class="archive-reminder" id="archive_reminder" style="display:none;">
-  <div class="ar-text">
-    ⚠️ 此篇修改幅度超過 25%，請記得到存檔資料夾<strong>「新建一份副本」並保留修改註解</strong>（檔案 → 建立副本 → 勾「複製註解和建議」），方便日後回溯改了什麼。
+  <div class="ar-text-group">
+    <div class="ar-text">
+      ⚠️ 此篇修改幅度達 25% 以上，請記得到存檔資料夾<strong>「新建一份副本」並保留修改註解</strong>（檔案 → 建立副本 → 勾「複製註解和建議」），方便日後回溯改了什麼。
+    </div>
+    <div class="ar-text" id="ar_comment_check" style="display:none;">
+      ⚠️ 出稿前請再檢查一次 Doc 裡的審稿備註，確認以下每個扣分項在對應段落都有留言寫清楚扣分原因（基本格式類的可以省略，這幾項務必寫）：
+      <ul id="ar_comment_list" style="margin:6px 0 0; padding-left:20px;"></ul>
+    </div>
   </div>
   <a class="btn primary" href="https://drive.google.com/drive/folders/16WO8rZ607AxQ3GwKCGpBUIsPInFN0GEn?usp=sharing" target="_blank" rel="noopener">開啟存檔資料夾 →</a>
 </div>
@@ -472,7 +479,30 @@ function updateSummary(){
   const card = document.getElementById('summary');
   card.classList.remove('pass', 'mid', 'fail');
   if(total > 0) card.classList.add(grade.cls);
-  document.getElementById('archive_reminder').style.display = total > 25 ? 'flex' : 'none';
+  document.getElementById('archive_reminder').style.display = total >= 25 ? 'flex' : 'none';
+
+  // 大扣分項（tier >= 5）清單：提醒審稿人確認 Doc 裡每一項都有對應留言
+  const bigItems = [];
+  ITEMS[currentMode].forEach(group => {
+    if(group.tier < 5) return;
+    group.items.forEach(item => {
+      const c = counts[item] || 0;
+      if(c > 0) bigItems.push(`${item} ×${c}（-${group.tier}%）`);
+    });
+  });
+  otherEntries.forEach(o => {
+    if(o.tier >= 5 && o.desc && o.desc.trim()){
+      bigItems.push(`其他：${o.desc.trim()}（-${o.tier}%）`);
+    }
+  });
+  const commentCheckEl = document.getElementById('ar_comment_check');
+  if(total >= 25 && bigItems.length){
+    document.getElementById('ar_comment_list').innerHTML = bigItems.map(t => `<li>${t}</li>`).join('');
+    commentCheckEl.style.display = 'block';
+  } else {
+    commentCheckEl.style.display = 'none';
+  }
+
   document.getElementById('tsv_section').classList.remove('visible');
   document.getElementById('copy_status').style.display = 'none';
 }
@@ -640,7 +670,7 @@ document.getElementById('gen_tsv_btn').addEventListener('click', () => {
   document.getElementById('tsv_text').textContent = tsv;
 
   // Trello 摘要：超過 25% 只寫「大於25」，不寫實際數字
-  const trelloPctLabel = total > 25 ? '大於25' : total.toFixed(1);
+  const trelloPctLabel = total >= 25 ? '大於等於25' : total.toFixed(1);
   const trelloLines = [`修改幅度：-${trelloPctLabel}%（依據統整結果）`];
   ITEMS[currentMode].forEach(group => {
     group.items.forEach(item => {
